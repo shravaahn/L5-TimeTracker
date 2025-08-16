@@ -63,43 +63,64 @@ export default async function handler(request, response) {
 
 */
 
-// FINAL VERSION
-// This function securely fetches the user's data from ClickUp.
+// FINAL PRODUCTION VERSION V2
+// This version uses the reliable /team endpoint to get the workspace ID.
 
 export default async function handler(request, response) {
   try {
     const token = request.headers.authorization;
+    const VIEW_ID = process.env.CLICKUP_VIEW_ID;
+    
+    if (!VIEW_ID) {
+      throw new Error('ClickUp View ID is not configured in Vercel environment variables.');
+    }
 
-    // 1. Get User Info
+    // 1. Get User's authorized teams using the RELIABLE endpoint
+    const teamsResponse = await fetch('https://api.clickup.com/api/v2/team', {
+        headers: { 'Authorization': token }
+    });
+    if (!teamsResponse.ok) throw new Error('Could not get authorized teams.');
+    const teamsData = await teamsResponse.json();
+    
+    // Safety Check: This is where the error was happening. This check is now against the reliable data.
+    if (!teamsData.teams || teamsData.teams.length === 0) {
+        return response.status(400).json({ error: 'Your ClickUp account does not belong to any workspace. Please check your People settings in ClickUp.' });
+    }
+    const team = teamsData.teams[0];
+    const teamId = team.id;
+
+    // 2. Get the basic user info (for ID and username)
     const userResponse = await fetch('https://api.clickup.com/api/v2/user', {
       headers: { 'Authorization': token }
     });
     if (!userResponse.ok) throw new Error('Failed to fetch user from ClickUp');
     const userData = await userResponse.json();
     const user = userData.user;
-
-    // --- SAFETY CHECK ---
-    if (!user.teams || user.teams.length === 0) {
-      return response.status(400).json({ error: 'Your ClickUp account does not belong to any workspace. Please check your People settings in ClickUp.' });
-    }
     
-    const team = user.teams[0];
+    // 3. Find the user's role from the reliable team data
+    const memberDetails = team.members.find(m => m.user.id === user.id);
+    const userRole = memberDetails ? memberDetails.user.role : 3; // Default to 'member'
 
-    // 2. Get Assigned Tasks
-    const tasksResponse = await fetch(`https://api.clickup.com/api/v2/team/${team.id}/task?assignees[]=${user.id}`, {
+    // 4. Fetch all tasks from our specific View
+    const tasksResponse = await fetch(`https://api.clickup.com/api/v2/view/${VIEW_ID}/task`, {
       headers: { 'Authorization': token }
     });
-    if (!tasksResponse.ok) throw new Error('Failed to fetch tasks from ClickUp');
+    if (!tasksResponse.ok) throw new Error('Failed to fetch tasks from the specified view.');
     const tasksData = await tasksResponse.json();
 
-    // 3. Send the final data back to the front-end
+    // 5. Filter the tasks to only show those assigned to the logged-in user
+    const assignedTasks = tasksData.tasks.filter(task => 
+        task.assignees.some(assignee => assignee.id === user.id)
+    );
+
+    // 6. Send the final data back to the front-end
     response.status(200).json({
       userId: user.id,
       username: user.username,
-      teamId: team.id,
+      teamId: teamId,
       teamName: team.name,
-      role: team.role, // <-- ADDED USER ROLE
-      tasks: tasksData.tasks
+      role: userRole,
+      tasks: assignedTasks
     });
 
   } catch (error) {
