@@ -2,279 +2,512 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>L5 Time Tracker</title>
+  <title>Time Tracking — v8</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root{
       --bg:#0f1115; --panel:#171a21; --muted:#8b94a7; --text:#e8ecf1;
-      --accent:#7b68ee; --accent-2:#22c55e; --warn:#f59e0b; --danger:#ef4444;
-      --border:#242a35; --input:#11141a;
+      --accent:#4f8cff; --accent-2:#22c55e; --warn:#f59e0b; --danger:#ef4444;
+      --border:#242a35; --input:#11141a; --good:#22c55e; --bad:#ef4444;
       --radius:12px;
     }
     *{box-sizing:border-box}
-    body{ margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial; color:var(--text); background:var(--bg); min-height:100vh; }
-    .center-view{ display:grid; place-content:center; min-height:100vh; padding:24px; }
-    .hidden{display:none}
-    .card{ width:min(1300px,100%); background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); box-shadow:0 10px 30px rgba(0,0,0,.35); overflow:hidden; }
-    header{ padding:18px 22px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); background:rgba(255,255,255,.02); }
+    body{ margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial;
+      color:var(--text); background:linear-gradient(180deg,#0f1115,#0b0d12 60%);
+      min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+    .card{ width:min(1300px,100%); background:var(--panel); border:1px solid var(--border);
+      border-radius:var(--radius); box-shadow:0 10px 30px rgba(0,0,0,.35); overflow:hidden; }
+    header{ padding:18px 22px; display:flex; align-items:center; justify-content:space-between;
+      border-bottom:1px solid var(--border); background:rgba(255,255,255,.02); }
     .brand{display:flex; gap:10px; align-items:center}
-    .logo{ width:34px; height:34px; display:grid; place-items:center; border-radius:10px; background:var(--accent); color:white; font-weight:800; }
+    .logo{ width:34px; height:34px; display:grid; place-items:center; border-radius:10px;
+      background:linear-gradient(135deg,var(--accent),#7aa8ff); color:white; font-weight:800; }
+    .muted{color:var(--muted)}
+    .role-badge{ font-size:12px; padding:6px 10px; border:1px solid var(--border);
+      border-radius:999px; color:var(--muted); background:rgba(255,255,255,.02); }
     .wrap{padding:22px}
-    .controls{display:flex; align-items:center; gap:10px;}
-    button, select, a.button { appearance:none; border:1px solid var(--border); background:#11141a; color:var(--text); text-decoration: none; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600; text-align: center; }
-    button.primary, a.button.primary{background:var(--accent); border-color:transparent; color:white; font-weight:600}
-    button.success{background:var(--accent-2); border-color:transparent; color:#062f13;}
-    button.warn{background:var(--warn); border-color:transparent; color:#1b1404;}
+    .controls{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    button{ appearance:none; border:1px solid var(--border); background:#11141a; color:var(--text);
+      padding:10px 14px; border-radius:10px; cursor:pointer; }
+    button.primary{background:var(--accent); border-color:transparent; color:white; font-weight:600}
+    button.success{background:var(--accent-2); border-color:transparent; color:#06240f; font-weight:600}
+    button.warn{background:var(--warn); border-color:transparent; color:#1b1404; font-weight:600}
+    button.ghost{background:transparent}
     button:disabled{opacity:.6; cursor:not-allowed}
+    input, select{ width:100%; background:var(--input); border:1px solid var(--border); color:var(--text);
+      border-radius:10px; padding:10px 12px; outline:none; }
+    input[disabled].locked{ background:rgba(79,140,255,.08); border-color:rgba(79,140,255,.35); color:#bcd2ff; }
     .grid{ overflow:auto; border:1px solid var(--border); border-radius:12px; margin-top:14px; }
     table{border-collapse:separate; border-spacing:0; width:100%;}
-    thead th{ position:sticky; top:0; z-index:2; background:#12151c; color:#c8d2e3; border-bottom:1px solid var(--border); text-align:left; font-weight:600; padding:12px; white-space:nowrap; }
+    thead th{ position:sticky; top:0; z-index:2; background:#12151c; color:#c8d2e3;
+      border-bottom:1px solid var(--border); text-align:left; font-weight:600; padding:12px; white-space:nowrap; }
     th, td{border-bottom:1px solid var(--border); padding:10px; vertical-align:middle; white-space:nowrap}
-    .proj-cell{min-width:300px; position:sticky; left:0; background:inherit; z-index:1}
+    tbody tr:nth-child(even){background:rgba(255,255,255,.02)}
+    tfoot td{background:#10131a; color:#d7dfef; font-weight:600}
+    .proj-cell{min-width:220px; position:sticky; left:0; background:inherit; z-index:3}
     .num{text-align:right}
     .tiny{font-size:12px; color:var(--muted)}
-    .pickerRow{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px}
-    .pickerRow .label{font-size:12px; color:var(--muted)}
+    .pill{ font-size:12px; padding:4px 8px; border:1px solid var(--border); border-radius:999px; color:#cbd5e1; background:#0f131a; }
+    .linklike{color:#7aa8ff; cursor:pointer; text-decoration:underline}
+    .dash{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; margin-top:16px;}
+    .kpi{background:#0f131a; border:1px solid var(--border); border-radius:12px; padding:14px;}
+    .kpi .label{font-size:12px; color:var(--muted); margin-bottom:6px}
+    .kpi .value{font-size:22px; font-weight:700}
+    .kpi.delta.positive .value{color:var(--good)}
+    .kpi.delta.negative .value{color:var(--bad)}
+    .chartbox{margin-top:12px; background:#0f131a; border:1px solid var(--border); border-radius:12px; padding:12px; overflow:auto;}
+    canvas{width:100%; height:220px}
+    .pickerRow{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px}
+    .label{font-size:12px; color:var(--muted)}
+    .togglegrp{display:flex; gap:6px; align-items:center}
+    .cellBox{display:grid; grid-template-columns:1fr 1fr; gap:6px}
+
+    /* MODAL */
+    .modal-backdrop{
+      position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center;
+      z-index:10;
+    }
+    .modal{
+      width:min(520px, 92vw); background:#0f131a; border:1px solid var(--border); border-radius:14px; padding:18px;
+      box-shadow:0 20px 60px rgba(0,0,0,.6);
+    }
+    .modal header{ display:flex; align-items:center; justify-content:space-between; padding:0 0 10px 0; border:0; }
+    .modal h3{ margin:0; font-size:18px }
+    .modal .row{ display:grid; gap:8px; margin:12px 0 }
+    .modal .row.two{ grid-template-columns:1fr 1fr; }
+    .modal footer{ display:flex; gap:10px; justify-content:flex-end; margin-top:8px }
+    .help{ font-size:12px; color:var(--muted) }
+    .badge{ display:inline-flex; font-size:11px; padding:2px 8px; border:1px solid var(--border); border-radius:999px; color:#cbd5e1 }
   </style>
 </head>
 <body>
 
-<div id="container" class="center-view">
+<!-- LOGIN VIEW -->
+<div id="loginView" class="login" hidden>
+  <div class="brand" style="margin-bottom:14px">
+    <div class="logo">TT</div>
+    <div>
+      <div style="font-weight:700">Weekly Time Tracking</div>
+      <div class="muted">Demo login</div>
+    </div>
+  </div>
+  <h2>Sign in</h2>
+  <div class="tiny">Use demo accounts below or create a local one.</div>
+  <div style="display:grid; gap:10px; margin-top:12px">
+    <label>Username <input id="username" placeholder="e.g., consultant" /></label>
+    <label>Password <input id="password" type="password" placeholder="••••••" /></label>
+    <label>Role
+      <select id="role">
+        <option value="consultant">Consultant</option>
+        <option value="admin">Admin</option>
+      </select>
+    </label>
+    <button id="loginBtn" class="primary">Continue</button>
+  </div>
+  <div class="tiny" style="margin-top:8px">Demo: consultant/demo · admin/admin</div>
+</div>
+
+<!-- APP VIEW -->
+<div id="app" class="card" hidden>
+  <header>
+    <div class="brand">
+      <div class="logo">TT</div>
+      <div>
+        <div style="font-weight:800">Time Tracking</div>
+        <div class="muted" id="weekLabel"></div>
+      </div>
+    </div>
+    <div class="controls">
+      <span id="userBadge" class="role-badge"></span>
+      <span id="viewingBadge" class="role-badge" style="display:none"></span>
+      <button id="prevWeek" class="ghost">◀ Prev</button>
+      <button id="thisWeek" class="ghost" title="Jump to current week">This Week</button>
+      <button id="nextWeek" class="ghost">Next ▶</button>
+      <button id="addRow" class="">+ Add Project</button>
+      <button id="saveAll" class="success">Save</button>
+      <button id="exportCsv" class="">Export CSV</button>
+      <button id="logout" class="warn">Log out</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <!-- Admin selectors -->
+    <div id="adminPickerRow" class="pickerRow" style="display:none">
+      <span class="label">Month:</span>
+      <select id="monthPicker" style="min-width:180px"></select>
+      <span class="label">Week:</span>
+      <select id="weekPicker" style="min-width:260px"></select>
+      <span class="label">Consultant:</span>
+      <select id="consultantPicker" style="min-width:220px"></select>
+      <span class="tiny" id="consultantCount"></span>
+      <span class="right"></span>
+      <div class="togglegrp">
+        <span class="label">View:</span>
+        <button id="viewWeek" class="primary">Week</button>
+        <button id="viewMonth" class="ghost">Month</button>
+      </div>
     </div>
 
+    <div class="sumbar">
+      <span class="pill" id="sumEst">Est: 0.00h</span>
+      <span class="pill" id="sumTracked">Tracked: 0.00h</span>
+      <span class="pill" id="sumDelta">Δ (Tracked–Est): 0.00h</span>
+      <span class="right tiny" id="periodLabel">Period: Week</span>
+    </div>
+
+    <div class="grid">
+      <table id="timesheet">
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+        <tfoot id="tfoot"></tfoot>
+      </table>
+    </div>
+
+    <!-- Admin dashboard (unchanged visuals) -->
+    <div id="adminTools" style="margin-top:12px; display:none">
+      <div class="muted" style="margin-bottom:8px">Admin tools:</div>
+      <div class="dash">
+        <div class="kpi"><div class="label" id="kpiEstLabel">Total Est Hours (Week)</div><div class="value" id="kpiEst">0.00h</div></div>
+        <div class="kpi"><div class="label" id="kpiTrackedLabel">Total Tracked Hours (Week)</div><div class="value" id="kpiTracked">0.00h</div></div>
+        <div class="kpi delta" id="kpiDeltaBox"><div class="label" id="kpiDeltaTitle">Δ Tracked – Est</div><div class="value" id="kpiDelta">0.00h</div></div>
+      </div>
+      <div class="chartbox">
+        <div class="title" id="dailyChartTitle">Daily Totals (Est vs Tracked) — Week</div>
+        <canvas id="barChart" width="1200" height="220"></canvas>
+      </div>
+      <div class="chartbox">
+        <div class="title">Consultants (Est vs Tracked) — Selected Period</div>
+        <canvas id="consultantChart" width="1200" height="260"></canvas>
+      </div>
+      <div style="margin-top:10px">
+        <button id="unlockAll" class="">Unlock all estimates (visible period)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: time entry details -->
+<div id="modalBackdrop" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal">
+    <header>
+      <h3 id="modalTitle">Time Entry</h3>
+      <span class="badge" id="modalContext">—</span>
+    </header>
+
+    <div class="row">
+      <label>Type
+        <select id="timeType">
+          <option value="">— Select —</option>
+          <option>billable | Meeting</option>
+          <option>billable | Builds</option>
+          <option>billable | Client Correspondence</option>
+          <option>PTO</option>
+          <option>Holiday</option>
+          <option>Non BIllable | Internal Team Meeting</option>
+          <option>Non BIllable | Internal Projects</option>
+          <option>Non BIllable | L&amp;D</option>
+          <option>Non BIllable | PreSales/Sales</option>
+          <option>Non BIllable | Client Research</option>
+          <option>Non BIllable | Partner Engagement</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="row" id="subTypeRow" style="display:none">
+      <label>Sub Type
+        <select id="subType">
+          <option value="">— Select —</option>
+          <option>Firm Initiative</option>
+          <option>Internal Delivery project</option>
+          <option>Recruitment</option>
+          <option>Special Projects</option>
+          <option>Events</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="row two">
+      <label>Hours
+        <input id="modalHours" type="number" min="0" step="0.25" placeholder="e.g., 1.5" />
+      </label>
+      <div>
+        <div class="help">Only Hours will show in the table. All fields are saved for reporting.</div>
+      </div>
+    </div>
+
+    <footer>
+      <button id="modalCancel" class="ghost">Cancel</button>
+      <button id="modalSave" class="primary">Save</button>
+    </footer>
+  </div>
+</div>
+
 <script>
-    // --- TEMPLATES ---
-    const loginTemplate = `
-        <div class="center-view">
-            <a href="#" id="loginButton" class="button primary">Login with ClickUp</a>
-        </div>
-    `;
+// --- START: CLICKUP INTEGRATION LOGIC ---
 
-    const appTemplate = `
-        <div class="card">
-            <header>
-                <div class="brand">
-                    <div class="logo">L5</div>
-                    <div>
-                        <div style="font-weight:800">Time Tracking</div>
-                        <div class="muted" id="weekLabel"></div>
-                    </div>
-                </div>
-                <div class="controls">
-                    <span id="welcomeMessage" class="tiny"></span>
-                    <button id="logoutButton" class="warn">Log Out</button>
-                    <button id="saveAll" class="success">Save</button>
-                </div>
-            </header>
-            <div class="wrap">
-                <div id="adminPickerRow" class="pickerRow hidden">
-                    <span class="label">VIEWING AS ADMIN:</span>
-                    <select id="consultantPicker" style="min-width:220px"></select>
-                </div>
-                <div class="grid">
-                    <table id="timesheet">
-                        <thead></thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    `;
-
-    // --- CONFIGURATION ---
-    const CLIENT_ID = '6JL5V3OXV2EZ426G9WH3G2SHSD1YZ43B';
+    const CLIENT_ID = 'PASTE_YOUR_CLIENT_ID_HERE';
     const REDIRECT_URI = 'https://l5-time-tracker.vercel.app'; // Your Vercel URL
-    const CONTAINER = document.getElementById('container');
+    const VIEW_ID = 'k6hww-66631'; // Your View ID
 
-    // --- GLOBAL STATE ---
-    let appData = {
+    // This object will hold all data fetched from ClickUp
+    let clickupData = {
         accessToken: null,
-        teamId: null,
         loggedInUser: null,
+        teamId: null,
         allTasksFromView: [],
+        allUsersInWorkspace: []
     };
 
-    // --- MAIN APP LOGIC ---
-    async function init() {
+    function initAuth() {
         const urlParams = new URLSearchParams(window.location.search);
         const authCode = urlParams.get('code');
         const storedToken = localStorage.getItem('clickup_access_token');
 
         if (authCode) {
-            CONTAINER.innerHTML = `<h2>Authenticating...</h2>`;
-            try {
-                const token = await getAccessToken(authCode);
-                localStorage.setItem('clickup_access_token', token);
-                window.history.replaceState({}, document.title, window.location.pathname);
-                await loadApp(token);
-            } catch (error) {
-                CONTAINER.innerHTML = `<h2>Authentication Failed</h2><p>${error.message}</p>`;
-            }
+            document.getElementById('loginView').innerHTML = '<h2>Authenticating...</h2>';
+            getAccessToken(authCode);
         } else if (storedToken) {
-            await loadApp(storedToken);
+            clickupData.accessToken = storedToken;
+            loadInitialData();
         } else {
             showLogin();
         }
     }
 
-    function showLogin() {
-        CONTAINER.innerHTML = loginTemplate;
-        document.getElementById('loginButton').onclick = () => {
+    async function getAccessToken(code) {
+        try {
+            const response = await fetch('/api/get_token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: code }),
+            });
+            if (!response.ok) throw new Error('Failed to get access token');
+            
+            const data = await response.json();
+            localStorage.setItem('clickup_access_token', data.accessToken);
+            window.history.replaceState({}, document.title, window.location.pathname);
+            initAuth();
+        } catch (error) {
+            document.getElementById('loginView').innerHTML = `<h2>Auth Failed: ${error.message}</h2>`;
+        }
+    }
+
+    async function loadInitialData() {
+        try {
+            const response = await fetch('/api/get_data', { headers: { 'Authorization': clickupData.accessToken } });
+            if (!response.ok) {
+                const errorInfo = await response.json();
+                throw new Error(errorInfo.error || 'Failed to fetch data');
+            }
+            const data = await response.json();
+
+            clickupData.loggedInUser = { id: data.userId, username: data.username, role: data.role };
+            clickupData.teamId = data.teamId;
+            clickupData.allTasksFromView = data.tasks;
+
+            // Call your original `showApp` function
+            showApp();
+
+        } catch (error) {
+            // If token is invalid, log out
+            console.error(error);
+            logoutUser();
+        }
+    }
+
+    function logoutUser() {
+        localStorage.removeItem('clickup_access_token');
+        user = null; // Clear your original user state
+        adminViewUser = null;
+        showLogin();
+    }
+
+    // --- END: CLICKUP INTEGRATION LOGIC ---
+
+
+    /** ========== Your Original Utilities & State ========== **/
+    const $ = s => document.querySelector(s);
+    const fmt = n => (isNaN(n)? '0.00' : Number(n).toFixed(2));
+    const today = new Date();
+    function startOfWeek(d){ const date = new Date(d); const day = (date.getDay()+6)%7; date.setDate(date.getDate()-day); date.setHours(0,0,0,0); return date; }
+    function addDays(d, n){ const x = new Date(d); x.setDate(x.getDate()+n); return x; }
+    function ymd(d){ return d.toISOString().slice(0,10); }
+    function niceDate(d){ return d.toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
+    
+    // This state is now controlled by `clickupData` but we keep your variables for compatibility
+    let user = null;
+    let adminViewUser = null;
+    let weekStart = startOfWeek(today);
+    let data = { rows: [] }; // This will be populated from ClickUp tasks
+    let viewMode = 'week';
+    let modalCtx = null;
+
+    function getActiveIdentity(){ if (user?.role==='admin' && adminViewUser) return adminViewUser; return user; }
+    function weeksInMonth(year, monthIndex){ /* ... your original code ... */
+        const res = [];
+        const firstOfMonth = new Date(year, monthIndex, 1);
+        let m = startOfWeek(firstOfMonth);
+        while (m.getMonth() <= monthIndex){
+            if (m.getMonth() === monthIndex) res.push(new Date(m));
+            m = addDays(m,7);
+            if (m.getMonth() > monthIndex && m.getDate() > 7) break;
+        }
+        return res;
+    }
+    function labelWeekRange(monday){ const fri = addDays(monday,4); return `${niceDate(monday)} — ${niceDate(fri)}`; }
+    function buildMonthOptions(current){ const out=[]; const base=new Date(current); base.setDate(1); for(let i=-5;i<=6;i++){ out.push(new Date(base.getFullYear(), base.getMonth()+i, 1)); } return out; }
+
+    /** ========== Login / Routing (MODIFIED) ========== **/
+    function showLogin(){ 
+        // We just modify your existing login button
+        const loginBtn = document.getElementById('loginBtn');
+        const loginInputs = document.querySelectorAll('#loginView label, #loginView .tiny');
+        
+        loginInputs.forEach(el => el.style.display = 'none'); // Hide old inputs
+        loginBtn.textContent = 'Login with ClickUp';
+        loginBtn.onclick = () => {
             const authUrl = `https://app.clickup.com/api?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
             window.location.href = authUrl;
         };
+
+        $('#loginView').hidden = false;
+        $('#app').hidden = true;
     }
 
-    async function loadApp(token) {
-        CONTAINER.className = ''; // Reset class for app view
-        CONTAINER.innerHTML = appTemplate;
-        appData.accessToken = token;
+    function showApp(){
+        $('#loginView').hidden=true;
+        $('#app').hidden=false;
 
-        // Add event listeners for the newly created app elements
-        document.getElementById('logoutButton').onclick = logout;
-        document.getElementById('saveAll').onclick = saveData;
+        // Use the real user data from ClickUp
+        let roleName = 'consultant';
+        if (clickupData.loggedInUser.role <= 2) roleName = 'admin';
+        
+        user = { username: clickupData.loggedInUser.username, role: roleName, id: clickupData.loggedInUser.id };
+        
+        $('#userBadge').textContent = `${user.username} — ${user.role.toUpperCase()}`;
 
-        try {
-            const data = await fetchData();
-            appData.loggedInUser = { id: data.userId, username: data.username, role: data.role };
-            appData.teamId = data.teamId;
-            appData.allTasksFromView = data.tasks;
-
-            document.getElementById('welcomeMessage').textContent = `Welcome, ${appData.loggedInUser.username}!`;
-
-            if (appData.loggedInUser.role <= 2) { // Is Admin or Owner
-                document.getElementById('adminPickerRow').classList.remove('hidden');
-                await populateConsultantPicker();
-                // When dropdown changes, re-render the timesheet with filtered tasks
-                document.getElementById('consultantPicker').addEventListener('change', (e) => {
-                    renderTimesheetForUser(e.target.value);
-                });
-            }
-            
-            // Initial render for the logged-in user
-            renderTimesheetForUser(appData.loggedInUser.id);
-
-        } catch (error) {
-            // Handle token-related fetch errors
-            if (error.message.includes('token')) {
-                logout();
-            } else {
-                CONTAINER.innerHTML = `<h1>Error</h1><p>${error.message}</p>`;
-            }
-        }
-    }
-    
-    function renderTimesheetForUser(userId) {
-        const tasksToRender = appData.allTasksFromView.filter(task => 
-            task.assignees.some(assignee => assignee.id == userId)
+        // Populate the timesheet for the logged-in user initially
+        const myTasks = clickupData.allTasksFromView.filter(task => 
+            task.assignees.some(a => a.id === user.id)
         );
-        renderTimesheet(tasksToRender);
-    }
+        data = { rows: myTasks }; // Adapt data structure
+        render();
 
-    function logout() {
-        localStorage.removeItem('clickup_access_token');
-        CONTAINER.className = 'center-view';
-        showLogin();
-    }
-    
-    // --- API HELPER FUNCTIONS ---
-    async function getAccessToken(code) {
-        const response = await fetch('/api/get_token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: code }),
-        });
-        if (!response.ok) throw new Error('Failed to exchange code for token.');
-        const data = await response.json();
-        return data.accessToken;
-    }
-
-    async function fetchData() {
-        const response = await fetch('/api/get_data', { headers: { 'Authorization': appData.accessToken } });
-        if (!response.ok) {
-            const errorInfo = await response.json();
-            throw new Error(errorInfo.error || 'Failed to fetch data');
+        if (user.role === 'admin') {
+            $('#adminTools').style.display = 'block';
+            $('#adminPickerRow').style.display = 'flex';
+            populateConsultantPicker();
         }
-        return await response.json();
     }
 
-    async function populateConsultantPicker() {
-        const consultantPicker = document.getElementById('consultantPicker');
+    /** ========== Admin pickers (MODIFIED) ========== **/
+    async function populateConsultantPicker(){
+        const picker = $('#consultantPicker');
+        picker.innerHTML = '<option>Loading users...</option>';
+
         const response = await fetch('/api/get_users', {
             method: 'POST',
             headers: {
-                'Authorization': appData.accessToken,
+                'Authorization': clickupData.accessToken,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ teamId: appData.teamId })
+            body: JSON.stringify({ teamId: clickupData.teamId })
         });
-        if (!response.ok) return; // Fail silently
-        const members = await response.json();
-        
-        consultantPicker.innerHTML = '';
-        members.forEach(member => {
-            const opt = document.createElement('option');
-            opt.value = member.user.id;
-            opt.textContent = member.user.username;
-            consultantPicker.appendChild(opt);
-        });
-        // Set the default selection to the currently logged-in user
-        consultantPicker.value = appData.loggedInUser.id;
-    }
-
-    async function saveData() {
-        // This is where the save logic will go.
-        alert('Save functionality is the next step!');
-    }
-
-    // --- UI RENDERING ---
-    function renderTimesheet(tasks) {
-        const timesheetHead = document.querySelector('#timesheet thead');
-        const timesheetBody = document.querySelector('#timesheet tbody');
-        
-        // Build Header
-        const weekDays = getWeekDays();
-        let headHTML = `<tr><th class="proj-cell">Project</th>`;
-        ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].forEach((day, i) => {
-            headHTML += `<th>${day} • ${weekDays[i].toLocaleDateString(undefined, {month:'short', day:'numeric'})}</th>`;
-        });
-        timesheetHead.innerHTML = headHTML;
-
-        // Build Body
-        if (!tasks || tasks.length === 0) {
-            timesheetBody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px;">No projects assigned to this user.</td></tr>`;
+        if (!response.ok) {
+            picker.innerHTML = '<option>Error loading users</option>';
             return;
         }
-        
-        let bodyHTML = '';
-        tasks.forEach(task => {
-            bodyHTML += `<tr data-task-id="${task.id}">`;
-            bodyHTML += `<td class="proj-cell">${task.name}</td>`;
-            for (let i = 0; i < 5; i++) {
-                bodyHTML += `<td><input type="number" class="num" step="0.25" min="0" placeholder="0.00"></td>`;
-            }
-            bodyHTML += `</tr>`;
+
+        const members = await response.json();
+        clickupData.allUsersInWorkspace = members; // Save for later
+
+        picker.innerHTML='';
+        members.forEach(m => {
+            const opt=document.createElement('option');
+            opt.value=m.user.id;
+            opt.textContent = m.user.username;
+            if(m.user.id === user.id) opt.textContent += ' (Me)';
+            picker.appendChild(opt);
         });
-        timesheetBody.innerHTML = bodyHTML;
+
+        picker.value = user.id; // Default to logged-in user
+
+        picker.onchange = () => {
+            const selectedUserId = parseInt(picker.value, 10);
+            const selectedUser = clickupData.allUsersInWorkspace.find(m => m.user.id === selectedUserId)?.user;
+            
+            adminViewUser = { username: selectedUser.username, id: selectedUser.id, role: 'consultant' };
+
+            const filteredTasks = clickupData.allTasksFromView.filter(task => 
+                task.assignees.some(a => a.id === selectedUserId)
+            );
+            data = { rows: filteredTasks }; // Update data with filtered tasks
+            render(); // Re-render the table for the selected user
+        };
+    }
+
+    /** ========== Table Rendering (MODIFIED) ========== **/
+    function render(){
+        buildHead(); // Your function, no changes needed
+        const tbody=$('#tbody');
+        tbody.innerHTML='';
+        
+        if (data.rows.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center;">No projects found for selected user.</td></tr>`;
+            return;
+        }
+
+        data.rows.forEach(task => { // Looping through tasks now
+            const tr=document.createElement('tr');
+            tr.dataset.taskId = task.id;
+
+            const tdProj=document.createElement('td');
+            tdProj.className='proj-cell';
+            // Project name is now fixed, not an input
+            tdProj.textContent = task.name; 
+            tr.appendChild(tdProj);
+
+            // The rest of the row rendering is from your code
+            for(let d=0; d<5; d++){
+                const td=document.createElement('td');
+                const box=document.createElement('div');
+                box.className='cellBox';
+                
+                const est=document.createElement('input');
+                est.type='number'; est.step='0.25'; est.min='0'; est.placeholder='Est'; est.className='num est-input';
+                
+                const tracked=document.createElement('input');
+                tracked.type='number'; tracked.step='0.25'; tracked.min='0'; tracked.placeholder='Tracked'; tracked.className='num tracked-input';
+                tracked.readOnly=true;
+                
+                // Add your original modal logic back here
+                // tracked.addEventListener('click', ()=> openTimeModal(...));
+                
+                box.append(est, tracked);
+                td.appendChild(td);
+            }
+            const tdTotal=document.createElement('td');
+            const tot=document.createElement('div');
+            tot.className='cellBox';
+            const estTot=document.createElement('input'); estTot.className='num'; estTot.disabled=true; estTot.value='0.00';
+            const trkTot=document.createElement('input'); trkTot.className='num'; trkTot.disabled=true; trkTot.value='0.00';
+            tot.append(estTot, trkTot);
+            tdTotal.appendChild(tot);
+            tr.appendChild(tdTotal);
+            tbody.appendChild(tr);
+        });
+
+        // Your other functions
+        // updateAllSummaries();
     }
     
-    function getWeekDays() {
-        const today = new Date();
-        const dayOfWeek = (today.getDay() + 6) % 7;
-        const monday = new Date(today);
-        monday.setDate(today.getDate() - dayOfWeek);
-        const days = [];
-        for (let i = 0; i < 5; i++) {
-            const day = new Date(monday);
-            day.setDate(monday.getDate() + i);
-            days.push(day);
-        }
-        return days;
-    }
+    // --- All your other original functions go below this line ---
+    // (buildHead, openTimeModal, updateAllSummaries, etc.)
+    // I have left them out here for brevity but you should keep them in your file.
+    // The key is that `render` is now driven by ClickUp data.
 
-    // --- START THE APP ---
-    init();
-
+    /** Boot */
+    initAuth();
 </script>
 </body>
 </html>
