@@ -9,8 +9,8 @@
         .login-btn { font-size: 18px; background: #7b68ee; color: white; padding: 14px 24px; border-radius: 8px; border: none; cursor: pointer; text-decoration: none; display: inline-block; }
         .hidden { display: none; }
         #appView p { max-width: 400px; margin: 10px auto; }
-        #taskList { list-style: none; padding: 0; }
-        #taskList li { background: #2a2a2a; padding: 8px; border-radius: 4px; margin-bottom: 5px; }
+        #taskList { list-style: none; padding: 0; max-width: 500px; margin: 20px auto; }
+        #taskList li { background: #2a2a2a; padding: 12px; border-radius: 6px; margin-bottom: 8px; }
     </style>
 </head>
 <body>
@@ -45,12 +45,10 @@
             const accessToken = localStorage.getItem('clickup_access_token');
 
             if (accessToken) {
-                // If we already have a token, show the app view and fetch data
                 loginView.classList.add('hidden');
                 appView.classList.remove('hidden');
                 fetchData(accessToken);
             } else if (authCode) {
-                // If we have a new auth code, exchange it for a token
                 loginView.classList.add('hidden');
                 appView.classList.remove('hidden');
                 getAccessToken(authCode);
@@ -74,13 +72,9 @@
                 if (!response.ok) throw new Error('Failed to get access token');
                 
                 const data = await response.json();
-                const accessToken = data.accessToken;
-                
-                localStorage.setItem('clickup_access_token', accessToken);
+                localStorage.setItem('clickup_access_token', data.accessToken);
                 window.history.replaceState({}, document.title, window.location.pathname);
-
-                // Now that we have the token, fetch the user's data
-                fetchData(accessToken);
+                fetchData(data.accessToken);
 
             } catch (error) {
                 console.error('Error:', error);
@@ -90,32 +84,25 @@
 
         async function fetchData(token) {
             try {
-                // 1. Get User Info
-                statusText.textContent = 'Fetching user information...';
-                const userResponse = await fetch('https://api.clickup.com/api/v2/user', {
+                statusText.textContent = 'Fetching your data...';
+                
+                // Call our NEW secure helper function, passing the token in the header
+                const response = await fetch('/api/get_data', {
                     headers: { 'Authorization': token }
                 });
-                if (!userResponse.ok) throw new Error('Could not fetch user info.');
-                const userData = await userResponse.json();
-                const user = userData.user;
-                const team = user.teams[0]; // Assuming the user's primary team
 
-                welcomeMessage.textContent = `Welcome, ${user.username}!`;
-                
-                // 2. Get User's Assigned Tasks
-                statusText.textContent = `Fetching tasks for workspace: ${team.name}...`;
-                const tasksResponse = await fetch(`https://api.clickup.com/api/v2/team/${team.id}/task?assignees[]=${user.id}`, {
-                    headers: { 'Authorization': token }
-                });
-                if (!tasksResponse.ok) throw new Error('Could not fetch tasks.');
-                const tasksData = await tasksResponse.json();
-                
-                statusText.textContent = `Found ${tasksData.tasks.length} assigned tasks.`;
+                if (!response.ok) {
+                    const errorInfo = await response.json();
+                    throw new Error(errorInfo.error || 'Failed to fetch data from our server');
+                }
 
-                // 3. Display the tasks on the page
-                taskList.innerHTML = ''; // Clear previous list
-                tasksData.tasks.forEach(task => {
-                    console.log('Task:', task.name); // Log task name to console
+                const data = await response.json();
+                
+                welcomeMessage.textContent = `Welcome, ${data.username}!`;
+                statusText.textContent = `Found ${data.tasks.length} assigned tasks in ${data.teamName}.`;
+
+                taskList.innerHTML = '';
+                data.tasks.forEach(task => {
                     const listItem = document.createElement('li');
                     listItem.textContent = task.name;
                     taskList.appendChild(listItem);
