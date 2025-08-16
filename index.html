@@ -243,271 +243,405 @@
 </div>
 
 <script>
-// --- START: CLICKUP INTEGRATION LOGIC ---
+// --- START: NEW CLICKUP INTEGRATION SCRIPT ---
 
-    const CLIENT_ID = '6JL5V3OXV2EZ426G9WH3G2SHSD1YZ43B';
-    const REDIRECT_URI = 'https://l5-time-tracker.vercel.app'; // Your Vercel URL
-    const VIEW_ID = 'k6hww-66631'; // Your View ID
+/** ========== CORE CONFIGURATION ========== **/
+const CLIENT_ID = '6JL5V3OXV2EZ426G9WH3G2SHSD1YZ43B';
+const REDIRECT_URI = 'https://l5-time-tracker.vercel.app'; // Your Vercel URL
+const VIEW_ID = 'k6hww-66631'; // The View ID for your "Active Projects"
 
-    // This object will hold all data fetched from ClickUp
-    let clickupData = {
-        accessToken: null,
-        loggedInUser: null,
-        teamId: null,
-        allTasksFromView: [],
-        allUsersInWorkspace: []
-    };
+/** ========== GLOBAL STATE ========== **/
+let clickup = {
+    token: null,
+    user: null, // The logged-in user {id, username, role}
+    team: null, // The user's primary workspace/team
+    allTasks: [], // All tasks from the Active Projects view
+    allUsers: [], // All users in the workspace
+};
 
-    function initAuth() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const authCode = urlParams.get('code');
-        const storedToken = localStorage.getItem('clickup_access_token');
+// Your original state variables, which will be controlled by the `clickup` object
+let user = null;
+let adminViewUser = null;
+let weekStart = startOfWeek(new Date());
+let data = { rows: [] }; // This will be populated from ClickUp tasks
+let viewMode = 'week';
+let modalCtx = null;
 
-        if (authCode) {
-            document.getElementById('loginView').innerHTML = '<h2>Authenticating...</h2>';
-            getAccessToken(authCode);
-        } else if (storedToken) {
-            clickupData.accessToken = storedToken;
-            loadInitialData();
-        } else {
-            showLogin();
-        }
-    }
+/** ========== BOOTSTRAP & AUTHENTICATION ========== **/
+function init() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const authCode = urlParams.get('code');
+    const storedToken = localStorage.getItem('clickup_access_token');
 
-    async function getAccessToken(code) {
-        try {
-            const response = await fetch('/api/get_token', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: code }),
-            });
-            if (!response.ok) throw new Error('Failed to get access token');
-            
-            const data = await response.json();
-            localStorage.setItem('clickup_access_token', data.accessToken);
-            window.history.replaceState({}, document.title, window.location.pathname);
-            initAuth();
-        } catch (error) {
-            document.getElementById('loginView').innerHTML = `<h2>Auth Failed: ${error.message}</h2>`;
-        }
-    }
-
-    async function loadInitialData() {
-        try {
-            const response = await fetch('/api/get_data', { headers: { 'Authorization': clickupData.accessToken } });
-            if (!response.ok) {
-                const errorInfo = await response.json();
-                throw new Error(errorInfo.error || 'Failed to fetch data');
-            }
-            const data = await response.json();
-
-            clickupData.loggedInUser = { id: data.userId, username: data.username, role: data.role };
-            clickupData.teamId = data.teamId;
-            clickupData.allTasksFromView = data.tasks;
-
-            // Call your original `showApp` function
-            showApp();
-
-        } catch (error) {
-            // If token is invalid, log out
-            console.error(error);
-            logoutUser();
-        }
-    }
-
-    function logoutUser() {
-        localStorage.removeItem('clickup_access_token');
-        user = null; // Clear your original user state
-        adminViewUser = null;
+    if (authCode) {
+        document.body.innerHTML = '<h2>Authenticating with ClickUp...</h2>';
+        getAccessToken(authCode);
+    } else if (storedToken) {
+        clickup.token = storedToken;
+        loadInitialData();
+    } else {
         showLogin();
     }
+}
 
-    // --- END: CLICKUP INTEGRATION LOGIC ---
-
-
-    /** ========== Your Original Utilities & State ========== **/
-    const $ = s => document.querySelector(s);
-    const fmt = n => (isNaN(n)? '0.00' : Number(n).toFixed(2));
-    const today = new Date();
-    function startOfWeek(d){ const date = new Date(d); const day = (date.getDay()+6)%7; date.setDate(date.getDate()-day); date.setHours(0,0,0,0); return date; }
-    function addDays(d, n){ const x = new Date(d); x.setDate(x.getDate()+n); return x; }
-    function ymd(d){ return d.toISOString().slice(0,10); }
-    function niceDate(d){ return d.toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
-    
-    // This state is now controlled by `clickupData` but we keep your variables for compatibility
-    let user = null;
-    let adminViewUser = null;
-    let weekStart = startOfWeek(today);
-    let data = { rows: [] }; // This will be populated from ClickUp tasks
-    let viewMode = 'week';
-    let modalCtx = null;
-
-    function getActiveIdentity(){ if (user?.role==='admin' && adminViewUser) return adminViewUser; return user; }
-    function weeksInMonth(year, monthIndex){ /* ... your original code ... */
-        const res = [];
-        const firstOfMonth = new Date(year, monthIndex, 1);
-        let m = startOfWeek(firstOfMonth);
-        while (m.getMonth() <= monthIndex){
-            if (m.getMonth() === monthIndex) res.push(new Date(m));
-            m = addDays(m,7);
-            if (m.getMonth() > monthIndex && m.getDate() > 7) break;
-        }
-        return res;
-    }
-    function labelWeekRange(monday){ const fri = addDays(monday,4); return `${niceDate(monday)} — ${niceDate(fri)}`; }
-    function buildMonthOptions(current){ const out=[]; const base=new Date(current); base.setDate(1); for(let i=-5;i<=6;i++){ out.push(new Date(base.getFullYear(), base.getMonth()+i, 1)); } return out; }
-
-    /** ========== Login / Routing (MODIFIED) ========== **/
-    function showLogin(){ 
-        // We just modify your existing login button
-        const loginBtn = document.getElementById('loginBtn');
-        const loginInputs = document.querySelectorAll('#loginView label, #loginView .tiny');
-        
-        loginInputs.forEach(el => el.style.display = 'none'); // Hide old inputs
-        loginBtn.textContent = 'Login with ClickUp';
-        loginBtn.onclick = () => {
-            const authUrl = `https://app.clickup.com/api?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
-            window.location.href = authUrl;
-        };
-
-        $('#loginView').hidden = false;
-        $('#app').hidden = true;
-    }
-
-    function showApp(){
-        $('#loginView').hidden=true;
-        $('#app').hidden=false;
-
-        // Use the real user data from ClickUp
-        let roleName = 'consultant';
-        if (clickupData.loggedInUser.role <= 2) roleName = 'admin';
-        
-        user = { username: clickupData.loggedInUser.username, role: roleName, id: clickupData.loggedInUser.id };
-        
-        $('#userBadge').textContent = `${user.username} — ${user.role.toUpperCase()}`;
-
-        // Populate the timesheet for the logged-in user initially
-        const myTasks = clickupData.allTasksFromView.filter(task => 
-            task.assignees.some(a => a.id === user.id)
-        );
-        data = { rows: myTasks }; // Adapt data structure
-        render();
-
-        if (user.role === 'admin') {
-            $('#adminTools').style.display = 'block';
-            $('#adminPickerRow').style.display = 'flex';
-            populateConsultantPicker();
-        }
-    }
-
-    /** ========== Admin pickers (MODIFIED) ========== **/
-    async function populateConsultantPicker(){
-        const picker = $('#consultantPicker');
-        picker.innerHTML = '<option>Loading users...</option>';
-
-        const response = await fetch('/api/get_users', {
+async function getAccessToken(code) {
+    try {
+        const response = await fetch('/api/get_token', {
             method: 'POST',
-            headers: {
-                'Authorization': clickupData.accessToken,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ teamId: clickupData.teamId })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: code }),
         });
-        if (!response.ok) {
-            picker.innerHTML = '<option>Error loading users</option>';
-            return;
-        }
-
-        const members = await response.json();
-        clickupData.allUsersInWorkspace = members; // Save for later
-
-        picker.innerHTML='';
-        members.forEach(m => {
-            const opt=document.createElement('option');
-            opt.value=m.user.id;
-            opt.textContent = m.user.username;
-            if(m.user.id === user.id) opt.textContent += ' (Me)';
-            picker.appendChild(opt);
-        });
-
-        picker.value = user.id; // Default to logged-in user
-
-        picker.onchange = () => {
-            const selectedUserId = parseInt(picker.value, 10);
-            const selectedUser = clickupData.allUsersInWorkspace.find(m => m.user.id === selectedUserId)?.user;
-            
-            adminViewUser = { username: selectedUser.username, id: selectedUser.id, role: 'consultant' };
-
-            const filteredTasks = clickupData.allTasksFromView.filter(task => 
-                task.assignees.some(a => a.id === selectedUserId)
-            );
-            data = { rows: filteredTasks }; // Update data with filtered tasks
-            render(); // Re-render the table for the selected user
-        };
-    }
-
-    /** ========== Table Rendering (MODIFIED) ========== **/
-    function render(){
-        buildHead(); // Your function, no changes needed
-        const tbody=$('#tbody');
-        tbody.innerHTML='';
+        if (!response.ok) throw new Error('Failed to exchange code for token.');
         
-        if (data.rows.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center;">No projects found for selected user.</td></tr>`;
-            return;
-        }
-
-        data.rows.forEach(task => { // Looping through tasks now
-            const tr=document.createElement('tr');
-            tr.dataset.taskId = task.id;
-
-            const tdProj=document.createElement('td');
-            tdProj.className='proj-cell';
-            // Project name is now fixed, not an input
-            tdProj.textContent = task.name; 
-            tr.appendChild(tdProj);
-
-            // The rest of the row rendering is from your code
-            for(let d=0; d<5; d++){
-                const td=document.createElement('td');
-                const box=document.createElement('div');
-                box.className='cellBox';
-                
-                const est=document.createElement('input');
-                est.type='number'; est.step='0.25'; est.min='0'; est.placeholder='Est'; est.className='num est-input';
-                
-                const tracked=document.createElement('input');
-                tracked.type='number'; tracked.step='0.25'; tracked.min='0'; tracked.placeholder='Tracked'; tracked.className='num tracked-input';
-                tracked.readOnly=true;
-                
-                // Add your original modal logic back here
-                // tracked.addEventListener('click', ()=> openTimeModal(...));
-                
-                box.append(est, tracked);
-                td.appendChild(td);
-            }
-            const tdTotal=document.createElement('td');
-            const tot=document.createElement('div');
-            tot.className='cellBox';
-            const estTot=document.createElement('input'); estTot.className='num'; estTot.disabled=true; estTot.value='0.00';
-            const trkTot=document.createElement('input'); trkTot.className='num'; trkTot.disabled=true; trkTot.value='0.00';
-            tot.append(estTot, trkTot);
-            tdTotal.appendChild(tot);
-            tr.appendChild(tdTotal);
-            tbody.appendChild(tr);
-        });
-
-        // Your other functions
-        // updateAllSummaries();
+        const data = await response.json();
+        localStorage.setItem('clickup_access_token', data.accessToken);
+        window.history.replaceState({}, '', window.location.pathname);
+        init(); // Re-initialize the app
+    } catch (error) {
+        document.body.innerHTML = `<h2>Authentication Failed</h2><p>${error.message}</p>`;
     }
-    
-    // --- All your other original functions go below this line ---
-    // (buildHead, openTimeModal, updateAllSummaries, etc.)
-    // I have left them out here for brevity but you should keep them in your file.
-    // The key is that `render` is now driven by ClickUp data.
+}
 
-    /** Boot */
-    initAuth();
+async function loadInitialData() {
+    try {
+        const response = await fetch('/api/get_data', { headers: { 'Authorization': clickup.token } });
+        if (!response.ok) {
+            const errorInfo = await response.json();
+            throw new Error(errorInfo.error || 'Failed to fetch data');
+        }
+        const data = await response.json();
+
+        clickup.user = { id: data.userId, username: data.username, role: data.role };
+        clickup.team = { id: data.teamId, name: data.teamName };
+        clickup.allTasks = data.tasks;
+
+        // Call your original `showApp` function to render the UI
+        showApp();
+
+    } catch (error) {
+        console.error('Data loading error:', error);
+        if (error.message.includes('token') || error.message.includes('unauthorized')) {
+            logoutUser();
+        } else {
+            document.body.innerHTML = `<h1>Error Loading Data</h1><p>${error.message}</p>`;
+        }
+    }
+}
+
+function logoutUser() {
+    localStorage.removeItem('clickup_access_token');
+    user = null;
+    adminViewUser = null;
+    window.location.href = REDIRECT_URI;
+}
+
+
+/** ========== Your Original Utilities (Unchanged) ========== **/
+const $ = s => document.querySelector(s);
+const fmt = n => (isNaN(n)? '0.00' : Number(n).toFixed(2));
+const today = new Date();
+function startOfWeek(d){ const date = new Date(d); const day = (date.getDay()+6)%7; date.setDate(date.getDate()-day); date.setHours(0,0,0,0); return date; }
+function addDays(d, n){ const x = new Date(d); x.setDate(x.getDate()+n); return x; }
+function ymd(d){ return d.toISOString().slice(0,10); }
+function niceDate(d){ return d.toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
+function getActiveIdentity(){ if (user?.role==='admin' && adminViewUser) return adminViewUser; return user; }
+function weeksInMonth(year, monthIndex){
+  const res = [];
+  const firstOfMonth = new Date(year, monthIndex, 1);
+  let m = startOfWeek(firstOfMonth);
+  while (m.getMonth() <= monthIndex){
+    if (m.getMonth() === monthIndex) res.push(new Date(m));
+    m = addDays(m,7);
+    if (m.getMonth() > monthIndex && m.getDate() > 7) break;
+  }
+  return res;
+}
+function labelWeekRange(monday){ const fri = addDays(monday,4); return `${niceDate(monday)} — ${niceDate(fri)}`; }
+function buildMonthOptions(current){ const out=[]; const base=new Date(current); base.setDate(1); for(let i=-5;i<=6;i++){ out.push(new Date(base.getFullYear(), base.getMonth()+i, 1)); } return out; }
+
+
+/** ========== Login / Routing (MODIFIED to use ClickUp data) ========== **/
+function showLogin(){ 
+    $('#loginView').hidden = false;
+    $('#app').hidden = true;
+    
+    const loginBtn = document.getElementById('loginBtn');
+    const loginInputs = document.querySelectorAll('#loginView label, #loginView .tiny');
+    
+    loginInputs.forEach(el => el.style.display = 'none'); // Hide old inputs
+    loginBtn.textContent = 'Login with ClickUp';
+    loginBtn.onclick = () => {
+        window.location.href = `https://app.clickup.com/api?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
+    };
+}
+
+function showApp(){
+  $('#loginView').hidden=true;
+  $('#app').hidden=false;
+
+  // Set the main user object from the fetched ClickUp data
+  const roleName = clickup.user.role <= 2 ? 'admin' : 'consultant';
+  user = { username: clickup.user.username, role: roleName, id: clickup.user.id };
+
+  $('#userBadge').textContent = `${user.username} — ${user.role.toUpperCase()}`;
+  $('#adminTools').style.display = user.role==='admin' ? 'block' : 'none';
+  $('#adminPickerRow').style.display = user.role==='admin' ? 'flex' : 'none';
+  
+  // Initially render the timesheet for the logged-in user
+  const myTasks = clickup.allTasks.filter(t => t.assignees.some(a => a.id === user.id));
+  data.rows = myTasks.map(t => ({...t, project: t.name, cells: {}})); // Adapt to your data structure
+  render();
+
+  if (user.role==='admin'){
+    populateConsultantPicker();
+    // Your other admin UI setup calls can go here
+    // populateMonthWeekSelectors();
+    // setViewButtons();
+  }
+}
+
+/** ========== Admin Pickers (MODIFIED to use ClickUp data) ========== **/
+async function populateConsultantPicker(){
+  const picker = $('#consultantPicker');
+  picker.innerHTML='<option>Loading users...</option>';
+
+  try {
+    const response = await fetch('/api/get_users', {
+      method: 'POST',
+      headers: { 'Authorization': clickup.token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teamId: clickup.team.id })
+    });
+    if (!response.ok) throw new Error('Could not fetch users');
+    
+    const users = await response.json();
+    clickup.allUsers = users;
+    
+    picker.innerHTML='';
+    users.forEach(u => {
+      const opt = document.createElement('option');
+      opt.value = u.user.id;
+      opt.textContent = u.user.username;
+      picker.appendChild(opt);
+    });
+
+    picker.value = user.id; // Default to the logged-in admin
+
+    picker.onchange = () => {
+        const selectedUserId = parseInt(picker.value, 10);
+        const selectedUser = clickup.allUsers.find(u => u.user.id === selectedUserId);
+        
+        // Set your original adminViewUser variable
+        adminViewUser = { username: selectedUser.user.username, id: selectedUser.user.id, role: 'consultant' };
+        $('#viewingBadge').style.display = adminViewUser.id !== user.id ? 'inline-flex' : 'none';
+        $('#viewingBadge').textContent = `Viewing: ${adminViewUser.username}`;
+
+        // Filter tasks for the selected user and re-render
+        const filteredTasks = clickup.allTasks.filter(t => t.assignees.some(a => a.id === selectedUserId));
+        data.rows = filteredTasks.map(t => ({...t, project: t.name, cells: {}}));
+        render();
+    };
+
+  } catch (error) {
+    console.error(error);
+    picker.innerHTML = '<option>Error loading users</option>';
+  }
+}
+
+/** ========== Table Rendering (MODIFIED to use ClickUp data) ========== **/
+function render(){
+  // This is YOUR original render function, slightly adapted to use the new data structure.
+  buildHead();
+  const tbody=$('#tbody');
+  tbody.innerHTML='';
+  
+  if (data.rows.length === 0) {
+      const activeUser = getActiveIdentity();
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;">No projects found for ${activeUser.username}.</td></tr>`;
+      return;
+  }
+  
+  data.rows.forEach(row=>{ // `row` is now a task object from ClickUp
+    const tr=document.createElement('tr');
+    tr.dataset.taskId = row.id;
+    
+    const tdProj=document.createElement('td');
+    tdProj.className='proj-cell';
+    tdProj.textContent = row.project; // Using the 'project' property we added
+    tr.appendChild(tdProj);
+
+    let rowEstTotal=0, rowTrkTotal=0;
+    for(let d=0; d<5; d++){
+      const td=document.createElement('td'); 
+      const c = row.cells[d] || {est:'',tracked:'',estLocked:false, trackedMeta:null};
+      row.cells[d]=c;
+      const box=document.createElement('div');
+      box.className='cellBox';
+
+      const est=document.createElement('input'); 
+      est.type='number'; est.step='0.25'; est.min='0'; est.placeholder='Est'; est.className='num est-input';
+      
+      const tracked=document.createElement('input'); 
+      tracked.type='number'; tracked.step='0.25'; tracked.min='0'; tracked.placeholder='Tracked'; tracked.className='num tracked-input';
+      tracked.readOnly=true;
+      tracked.addEventListener('click', ()=> openTimeModal({wkMon:new Date(weekStart), row: row, dayIdx:d, c}));
+      
+      box.append(est, tracked);
+      td.appendChild(box);
+      tr.appendChild(td);
+    }
+    const tdTotal=document.createElement('td');
+    const tot=document.createElement('div');
+    tot.className='cellBox';
+    const estTot=document.createElement('input'); estTot.className='num'; estTot.disabled=true; estTot.value=fmt(rowEstTotal);
+    const trkTot=document.createElement('input'); trkTot.className='num'; trkTot.disabled=true; trkTot.value=fmt(rowTrkTotal);
+    tot.append(estTot, trkTot);
+      tdTotal.appendChild(tot);
+    tr.appendChild(tdTotal);
+    tbody.appendChild(tr);
+  });
+  updateAllSummaries();
+}
+
+/** ========== Save Logic (MODIFIED to save to ClickUp) ========== **/
+async function save(){
+    const saveButton = $('#saveAll');
+    saveButton.textContent = 'Saving...';
+    saveButton.disabled = true;
+
+    const timeEntries = [];
+    const rows = document.querySelectorAll('#tbody tr[data-task-id]');
+
+    rows.forEach((row, rowIndex) => {
+        const taskId = row.dataset.taskId;
+        const trackedInputs = row.querySelectorAll('.tracked-input');
+        
+        trackedInputs.forEach((input, dayIndex) => {
+            const hours = parseFloat(input.value);
+            if (hours > 0) {
+                timeEntries.push({
+                    taskId: taskId,
+                    date: addDays(weekStart, dayIndex),
+                    hours: hours,
+                });
+            }
+        });
+    });
+
+    if (timeEntries.length === 0) {
+        alert('No time to save.');
+        saveButton.textContent = 'Save';
+        saveButton.disabled = false;
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/save_time', {
+            method: 'POST',
+            headers: { 'Authorization': clickup.token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                timeEntries: timeEntries, 
+                teamId: clickup.team.id,
+                userId: getActiveIdentity().id
+            })
+        });
+        if (!response.ok) throw new Error('Failed to save to ClickUp');
+
+        alert('Time saved successfully!');
+    } catch (error) {
+        console.error(error);
+        alert('Error saving time to ClickUp.');
+    } finally {
+        saveButton.textContent = 'Save';
+        saveButton.disabled = false;
+    }
+}
+
+
+/** ========== Your Original Untouched Functions Below ========== **/
+// (These functions should work as-is with the new data structure)
+
+function buildHead(){
+  const thead = $('#thead'); thead.innerHTML='';
+  const tr1 = document.createElement('tr');
+  const baseTh = document.createElement('th'); baseTh.textContent='Project'; baseTh.className='proj-cell';
+  tr1.appendChild(baseTh);
+  const weekDaysArr=[]; 
+  for(let i=0;i<5;i++){ const d=addDays(weekStart,i); weekDaysArr.push(d);
+    const th=document.createElement('th'); th.innerHTML = `<div>${['Mon','Tue','Wed','Thu','Fri'][i]} • ${niceDate(d)}</div><div class="tiny">Est | Tracked</div>`; tr1.appendChild(th); }
+  const thT=document.createElement('th'); thT.innerHTML='<div>Total (Week)</div><div class="tiny">Est | Tracked</div>'; tr1.appendChild(thT);
+  $('#weekLabel').textContent = `${niceDate(weekDaysArr[0])} — ${niceDate(weekDaysArr[4])}`;
+  thead.appendChild(tr1);
+}
+
+function updateAllSummaries(){
+    const rows = document.querySelectorAll('#tbody tr[data-task-id]');
+    let grandTotalEst = 0;
+    let grandTotalTrk = 0;
+
+    rows.forEach(row => {
+        let rowTotalEst = 0;
+        let rowTotalTrk = 0;
+        row.querySelectorAll('.est-input').forEach(input => rowTotalEst += (parseFloat(input.value) || 0));
+        row.querySelectorAll('.tracked-input').forEach(input => rowTotalTrk += (parseFloat(input.value) || 0));
+        
+        const totalCells = row.querySelectorAll('td:last-child input');
+        totalCells[0].value = fmt(rowTotalEst);
+        totalCells[1].value = fmt(rowTotalTrk);
+
+        grandTotalEst += rowTotalEst;
+        grandTotalTrk += rowTotalTrk;
+    });
+
+    $('#sumEst').textContent=`Est: ${fmt(grandTotalEst)}h`;
+    $('#sumTracked').textContent=`Tracked: ${fmt(grandTotalTrk)}h`;
+    $('#sumDelta').textContent=`Δ (Tracked–Est): ${fmt(grandTotalTrk - grandTotalEst)}h`;
+}
+
+function openTimeModal(ctx){
+  modalCtx = ctx;
+  const proj = ctx.row.project || '(Untitled Project)';
+  const theDay = ['Mon','Tue','Wed','Thu','Fri'][ctx.dayIdx];
+  $('#modalContext').textContent = `${proj} • ${theDay} • ${niceDate(addDays(ctx.wkMon, ctx.dayIdx))}`;
+  const meta = ctx.c.trackedMeta || {};
+  $('#timeType').value = meta.type || '';
+  $('#subType').value  = meta.subType || '';
+  $('#modalHours').value = ctx.c.tracked ?? '';
+  toggleSubType();
+  $('#modalBackdrop').style.display='flex';
+  setTimeout(()=>$('#modalHours').focus(), 10);
+}
+
+function closeTimeModal(){ $('#modalBackdrop').style.display='none'; modalCtx=null; }
+
+function toggleSubType(){
+  const v = ($('#timeType').value||'').trim();
+  const show = v.toLowerCase().includes('internal projects');
+  $('#subTypeRow').style.display = show ? 'block' : 'none';
+  if (!show) $('#subType').value = '';
+}
+
+// Event Listeners for your UI
+$('#logout').addEventListener('click', logoutUser);
+$('#saveAll').addEventListener('click', save);
+// We can reconnect the rest of the buttons (prev/next week, etc.) next.
+// The modal save needs to be updated to not use localStorage.
+$('#modalSave').addEventListener('click', () => {
+    if (!modalCtx) return;
+    const hours = $('#modalHours').value;
+    // Find the right input on the grid and update its value
+    const row = document.querySelector(`tr[data-task-id="${modalCtx.row.id}"]`);
+    if(row) {
+        const input = row.querySelectorAll('.tracked-input')[modalCtx.dayIdx];
+        input.value = hours;
+        updateAllSummaries();
+    }
+    closeTimeModal();
+});
+$('#modalCancel').addEventListener('click', closeTimeModal);
+$('#timeType').addEventListener('change', toggleSubType);
+
+/** Boot */
+init();
 </script>
 </body>
 </html>
