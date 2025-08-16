@@ -2,371 +2,278 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Time Tracking — v8</title>
+  <title>L5 Time Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root{
       --bg:#0f1115; --panel:#171a21; --muted:#8b94a7; --text:#e8ecf1;
-      --accent:#4f8cff; --accent-2:#22c55e; --warn:#f59e0b; --danger:#ef4444;
-      --border:#242a35; --input:#11141a; --good:#22c55e; --bad:#ef4444;
+      --accent:#7b68ee; --accent-2:#22c55e; --warn:#f59e0b; --danger:#ef4444;
+      --border:#242a35; --input:#11141a;
       --radius:12px;
     }
     *{box-sizing:border-box}
-    body{ margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial;
-      color:var(--text); background:linear-gradient(180deg,#0f1115,#0b0d12 60%);
-      min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
-    .card{ width:min(1300px,100%); background:var(--panel); border:1px solid var(--border);
-      border-radius:var(--radius); box-shadow:0 10px 30px rgba(0,0,0,.35); overflow:hidden; }
-    header{ padding:18px 22px; display:flex; align-items:center; justify-content:space-between;
-      border-bottom:1px solid var(--border); background:rgba(255,255,255,.02); }
+    body{ margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial; color:var(--text); background:var(--bg); min-height:100vh; }
+    .center-view{ display:grid; place-content:center; min-height:100vh; padding:24px; }
+    .hidden{display:none}
+    .card{ width:min(1300px,100%); background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); box-shadow:0 10px 30px rgba(0,0,0,.35); overflow:hidden; }
+    header{ padding:18px 22px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); background:rgba(255,255,255,.02); }
     .brand{display:flex; gap:10px; align-items:center}
-    .logo{ width:34px; height:34px; display:grid; place-items:center; border-radius:10px;
-      background:linear-gradient(135deg,var(--accent),#7aa8ff); color:white; font-weight:800; }
-    .muted{color:var(--muted)}
-    .role-badge{ font-size:12px; padding:6px 10px; border:1px solid var(--border);
-      border-radius:999px; color:var(--muted); background:rgba(255,255,255,.02); }
+    .logo{ width:34px; height:34px; display:grid; place-items:center; border-radius:10px; background:var(--accent); color:white; font-weight:800; }
     .wrap{padding:22px}
-    .controls{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
-    button, a.button { appearance:none; border:1px solid var(--border); background:#11141a; color:var(--text); text-decoration: none;
-      padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600; text-align: center; }
+    .controls{display:flex; align-items:center; gap:10px;}
+    button, select, a.button { appearance:none; border:1px solid var(--border); background:#11141a; color:var(--text); text-decoration: none; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600; text-align: center; }
     button.primary, a.button.primary{background:var(--accent); border-color:transparent; color:white; font-weight:600}
-    button.success{background:var(--accent-2); border-color:transparent; color:#06240f; font-weight:600}
-    button.warn{background:var(--warn); border-color:transparent; color:#1b1404; font-weight:600}
-    button.ghost{background:transparent}
+    button.success{background:var(--accent-2); border-color:transparent; color:#062f13;}
+    button.warn{background:var(--warn); border-color:transparent; color:#1b1404;}
     button:disabled{opacity:.6; cursor:not-allowed}
-    input, select{ width:100%; background:var(--input); border:1px solid var(--border); color:var(--text);
-      border-radius:10px; padding:10px 12px; outline:none; }
-    input[disabled].locked{ background:rgba(79,140,255,.08); border-color:rgba(79,140,255,.35); color:#bcd2ff; }
     .grid{ overflow:auto; border:1px solid var(--border); border-radius:12px; margin-top:14px; }
     table{border-collapse:separate; border-spacing:0; width:100%;}
-    thead th{ position:sticky; top:0; z-index:2; background:#12151c; color:#c8d2e3;
-      border-bottom:1px solid var(--border); text-align:left; font-weight:600; padding:12px; white-space:nowrap; }
+    thead th{ position:sticky; top:0; z-index:2; background:#12151c; color:#c8d2e3; border-bottom:1px solid var(--border); text-align:left; font-weight:600; padding:12px; white-space:nowrap; }
     th, td{border-bottom:1px solid var(--border); padding:10px; vertical-align:middle; white-space:nowrap}
-    tbody tr:nth-child(even){background:rgba(255,255,255,.02)}
-    tfoot td{background:#10131a; color:#d7dfef; font-weight:600}
-    .proj-cell{min-width:220px; position:sticky; left:0; background:inherit; z-index:3}
+    .proj-cell{min-width:300px; position:sticky; left:0; background:inherit; z-index:1}
     .num{text-align:right}
     .tiny{font-size:12px; color:var(--muted)}
-    .pill{ font-size:12px; padding:4px 8px; border:1px solid var(--border); border-radius:999px; color:#cbd5e1; background:#0f131a; }
-    .linklike{color:#7aa8ff; cursor:pointer; text-decoration:underline}
-    .dash{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; margin-top:16px;}
-    .kpi{background:#0f131a; border:1px solid var(--border); border-radius:12px; padding:14px;}
-    .kpi .label{font-size:12px; color:var(--muted); margin-bottom:6px}
-    .kpi .value{font-size:22px; font-weight:700}
-    .kpi.delta.positive .value{color:var(--good)}
-    .kpi.delta.negative .value{color:var(--bad)}
-    .chartbox{margin-top:12px; background:#0f131a; border:1px solid var(--border); border-radius:12px; padding:12px; overflow:auto;}
-    canvas{width:100%; height:220px}
-    .pickerRow{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px}
-    .label{font-size:12px; color:var(--muted)}
-    .togglegrp{display:flex; gap:6px; align-items:center}
-    .cellBox{display:grid; grid-template-columns:1fr 1fr; gap:6px}
-    .login-container { max-width: 320px; margin: 0 auto; padding: 20px;}
-    /* MODAL */
-    .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:10; }
-    .modal{ width:min(520px, 92vw); background:#0f131a; border:1px solid var(--border); border-radius:14px; padding:18px; box-shadow:0 20px 60px rgba(0,0,0,.6); }
-    .modal header{ display:flex; align-items:center; justify-content:space-between; padding:0 0 10px 0; border:0; }
-    .modal h3{ margin:0; font-size:18px }
-    .modal .row{ display:grid; gap:8px; margin:12px 0 }
-    .modal .row.two{ grid-template-columns:1fr 1fr; }
-    .modal footer{ display:flex; gap:10px; justify-content:flex-end; margin-top:8px }
-    .help{ font-size:12px; color:var(--muted) }
-    .badge{ display:inline-flex; font-size:11px; padding:2px 8px; border:1px solid var(--border); border-radius:999px; color:#cbd5e1 }
+    .pickerRow{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px}
+    .pickerRow .label{font-size:12px; color:var(--muted)}
   </style>
 </head>
 <body>
 
-<div id="loginView" class="login-container">
-  <div class="brand" style="margin-bottom:14px; justify-content: center;">
-    <div class="logo">TT</div>
-    <div>
-      <div style="font-weight:700">Weekly Time Tracking</div>
-      <div class="muted">L5 Time Tracker</div>
-    </div>
-  </div>
-  <h2 style="margin-top: 30px;">Sign in</h2>
-  <p class="tiny">You will be redirected to ClickUp to authorize this application.</p>
-  <div id="authContainer" style="margin-top: 20px;">
-    <a href="#" id="loginButton" class="button primary" style="width: 100%;">Login with ClickUp</a>
-  </div>
-</div>
-
-<div id="app" class="card" hidden>
-  <header>
-    <div class="brand">
-      <div class="logo">TT</div>
-      <div>
-        <div style="font-weight:800">Time Tracking</div>
-        <div class="muted" id="weekLabel"></div>
-      </div>
-    </div>
-    <div class="controls">
-      <span id="userBadge" class="role-badge"></span>
-      <span id="viewingBadge" class="role-badge" style="display:none"></span>
-      <button id="prevWeek" class="ghost">◀ Prev</button>
-      <button id="thisWeek" class="ghost" title="Jump to current week">This Week</button>
-      <button id="nextWeek" class="ghost">Next ▶</button>
-      <button id="addRow" class="">+ Add Project</button>
-      <button id="saveAll" class="success">Save</button>
-      <button id="exportCsv" class="">Export CSV</button>
-      <button id="logout" class="warn">Log out</button>
-    </div>
-  </header>
-  <div class="wrap">
-    <div id="adminPickerRow" class="pickerRow" style="display:none">
-      </div>
-    <div class="sumbar">
-      <span class="pill" id="sumEst">Est: 0.00h</span>
-      <span class="pill" id="sumTracked">Tracked: 0.00h</span>
-      <span class="pill" id="sumDelta">Δ (Tracked–Est): 0.00h</span>
-    </div>
-    <div class="grid">
-      <table id="timesheet">
-        <thead id="thead"></thead>
-        <tbody id="tbody"></tbody>
-        <tfoot id="tfoot"></tfoot>
-      </table>
-    </div>
-    <div id="adminTools" style="margin-top:12px; display:none">
-      </div>
-  </div>
-</div>
-
-<div id="modalBackdrop" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+<div id="container" class="center-view">
     </div>
 
 <script>
-// --- START: CLICKUP INTEGRATION ---
+    // --- TEMPLATES ---
+    const loginTemplate = `
+        <div class="center-view">
+            <a href="#" id="loginButton" class="button primary">Login with ClickUp</a>
+        </div>
+    `;
 
-const CLIENT_ID = '6JL5V3OXV2EZ426G9WH3G2SHSD1YZ43B';
-const REDIRECT_URI = 'https://l5-time-tracker.vercel.app'; // Your Vercel URL
+    const appTemplate = `
+        <div class="card">
+            <header>
+                <div class="brand">
+                    <div class="logo">L5</div>
+                    <div>
+                        <div style="font-weight:800">Time Tracking</div>
+                        <div class="muted" id="weekLabel"></div>
+                    </div>
+                </div>
+                <div class="controls">
+                    <span id="welcomeMessage" class="tiny"></span>
+                    <button id="logoutButton" class="warn">Log Out</button>
+                    <button id="saveAll" class="success">Save</button>
+                </div>
+            </header>
+            <div class="wrap">
+                <div id="adminPickerRow" class="pickerRow hidden">
+                    <span class="label">VIEWING AS ADMIN:</span>
+                    <select id="consultantPicker" style="min-width:220px"></select>
+                </div>
+                <div class="grid">
+                    <table id="timesheet">
+                        <thead></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
 
-const loginView = document.getElementById('loginView');
-const appView = document.getElementById('app');
-const loginButton = document.getElementById('loginButton');
-const authContainer = document.getElementById('authContainer');
-const userBadge = document.getElementById('userBadge');
+    // --- CONFIGURATION ---
+    const CLIENT_ID = 'PASTE_YOUR_CLIENT_ID_HERE';
+    const REDIRECT_URI = 'https://l5-time-tracker.vercel.app'; // Your Vercel URL
+    const CONTAINER = document.getElementById('container');
 
-function initAuth() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const authCode = urlParams.get('code');
-    const accessToken = localStorage.getItem('clickup_access_token');
+    // --- GLOBAL STATE ---
+    let appData = {
+        accessToken: null,
+        teamId: null,
+        loggedInUser: null,
+        allTasksFromView: [],
+    };
 
-    if (accessToken) {
-        fetchClickUpData(accessToken);
-    } else if (authCode) {
-        getAccessToken(authCode);
-    } else {
+    // --- MAIN APP LOGIC ---
+    async function init() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const authCode = urlParams.get('code');
+        const storedToken = localStorage.getItem('clickup_access_token');
+
+        if (authCode) {
+            CONTAINER.innerHTML = `<h2>Authenticating...</h2>`;
+            try {
+                const token = await getAccessToken(authCode);
+                localStorage.setItem('clickup_access_token', token);
+                window.history.replaceState({}, document.title, window.location.pathname);
+                await loadApp(token);
+            } catch (error) {
+                CONTAINER.innerHTML = `<h2>Authentication Failed</h2><p>${error.message}</p>`;
+            }
+        } else if (storedToken) {
+            await loadApp(storedToken);
+        } else {
+            showLogin();
+        }
+    }
+
+    function showLogin() {
+        CONTAINER.innerHTML = loginTemplate;
+        document.getElementById('loginButton').onclick = () => {
+            const authUrl = `https://app.clickup.com/api?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
+            window.location.href = authUrl;
+        };
+    }
+
+    async function loadApp(token) {
+        CONTAINER.className = ''; // Reset class for app view
+        CONTAINER.innerHTML = appTemplate;
+        appData.accessToken = token;
+
+        // Add event listeners for the newly created app elements
+        document.getElementById('logoutButton').onclick = logout;
+        document.getElementById('saveAll').onclick = saveData;
+
+        try {
+            const data = await fetchData();
+            appData.loggedInUser = { id: data.userId, username: data.username, role: data.role };
+            appData.teamId = data.teamId;
+            appData.allTasksFromView = data.tasks;
+
+            document.getElementById('welcomeMessage').textContent = `Welcome, ${appData.loggedInUser.username}!`;
+
+            if (appData.loggedInUser.role <= 2) { // Is Admin or Owner
+                document.getElementById('adminPickerRow').classList.remove('hidden');
+                await populateConsultantPicker();
+                // When dropdown changes, re-render the timesheet with filtered tasks
+                document.getElementById('consultantPicker').addEventListener('change', (e) => {
+                    renderTimesheetForUser(e.target.value);
+                });
+            }
+            
+            // Initial render for the logged-in user
+            renderTimesheetForUser(appData.loggedInUser.id);
+
+        } catch (error) {
+            // Handle token-related fetch errors
+            if (error.message.includes('token')) {
+                logout();
+            } else {
+                CONTAINER.innerHTML = `<h1>Error</h1><p>${error.message}</p>`;
+            }
+        }
+    }
+    
+    function renderTimesheetForUser(userId) {
+        const tasksToRender = appData.allTasksFromView.filter(task => 
+            task.assignees.some(assignee => assignee.id == userId)
+        );
+        renderTimesheet(tasksToRender);
+    }
+
+    function logout() {
+        localStorage.removeItem('clickup_access_token');
+        CONTAINER.className = 'center-view';
         showLogin();
     }
-}
-
-loginButton.onclick = function() {
-    const authUrl = `https://app.clickup.com/api?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
-    window.location.href = authUrl;
-};
-
-document.getElementById('logout').onclick = function() {
-    localStorage.removeItem('clickup_access_token');
-    user = null; // Clear the user from your original script's state
-    showLogin();
-};
-
-async function getAccessToken(code) {
-    authContainer.innerHTML = '<h4>Authenticating...</h4>';
-    try {
+    
+    // --- API HELPER FUNCTIONS ---
+    async function getAccessToken(code) {
         const response = await fetch('/api/get_token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code: code }),
         });
         if (!response.ok) throw new Error('Failed to exchange code for token.');
-        
         const data = await response.json();
-        localStorage.setItem('clickup_access_token', data.accessToken);
-        window.history.replaceState({}, document.title, window.location.pathname);
-        initAuth();
-    } catch (error) {
-        authContainer.innerHTML = `<p style="color:var(--danger);">Authentication failed. Please try again.</p>`;
+        return data.accessToken;
     }
-}
 
-async function fetchClickUpData(token) {
-    try {
-        const response = await fetch('/api/get_data', { headers: { 'Authorization': token } });
+    async function fetchData() {
+        const response = await fetch('/api/get_data', { headers: { 'Authorization': appData.accessToken } });
         if (!response.ok) {
             const errorInfo = await response.json();
             throw new Error(errorInfo.error || 'Failed to fetch data');
         }
-        const data = await response.json();
-        
-        // ClickUp roles: 1=owner, 2=admin, 3=member, 4=guest
-        // Your clarification: consultant=member
-        let roleName = 'consultant'; // Default role
-        if (data.role <= 2) {
-            roleName = 'admin';
-        }
-
-        const clickupUser = {
-            id: data.userId,
-            username: data.username,
-            role: roleName,
-            teamId: data.teamId,
-            allTasks: data.tasks // Store all tasks if admin
-        };
-        
-        showApp(clickupUser); // Show the main application UI
-        render(data.tasks); // Render the timesheet with tasks from ClickUp
-
-    } catch (error) {
-        // If token is invalid, clear it and force re-login
-        if (error.message.includes('token')) {
-            localStorage.removeItem('clickup_access_token');
-            initAuth();
-        } else {
-            document.body.innerHTML = `<h1>Error</h1><p>${error.message}</p>`;
-        }
+        return await response.json();
     }
-}
 
-// --- END: CLICKUP INTEGRATION ---
+    async function populateConsultantPicker() {
+        const consultantPicker = document.getElementById('consultantPicker');
+        const response = await fetch('/api/get_users', {
+            method: 'POST',
+            headers: {
+                'Authorization': appData.accessToken,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ teamId: appData.teamId })
+        });
+        if (!response.ok) return; // Fail silently
+        const members = await response.json();
+        
+        consultantPicker.innerHTML = '';
+        members.forEach(member => {
+            const opt = document.createElement('option');
+            opt.value = member.user.id;
+            opt.textContent = member.user.username;
+            consultantPicker.appendChild(opt);
+        });
+        // Set the default selection to the currently logged-in user
+        consultantPicker.value = appData.loggedInUser.id;
+    }
 
-/** ========== Utilities & State (Your Original Code) ========== **/
-const $ = s => document.querySelector(s);
-const fmt = n => (isNaN(n)? '0.00' : Number(n).toFixed(2));
-const today = new Date();
-function startOfWeek(d){ const date = new Date(d); const day = (date.getDay()+6)%7; date.setDate(date.getDate()-day); date.setHours(0,0,0,0); return date; }
-function addDays(d, n){ const x = new Date(d); x.setDate(x.getDate()+n); return x; }
-function niceDate(d){ return d.toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
+    async function saveData() {
+        // This is where the save logic will go.
+        alert('Save functionality is the next step!');
+    }
 
-let user = null;
-let weekStart = startOfWeek(today);
+    // --- UI RENDERING ---
+    function renderTimesheet(tasks) {
+        const timesheetHead = document.querySelector('#timesheet thead');
+        const timesheetBody = document.querySelector('#timesheet tbody');
+        
+        // Build Header
+        const weekDays = getWeekDays();
+        let headHTML = `<tr><th class="proj-cell">Project</th>`;
+        ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].forEach((day, i) => {
+            headHTML += `<th>${day} • ${weekDays[i].toLocaleDateString(undefined, {month:'short', day:'numeric'})}</th>`;
+        });
+        timesheetHead.innerHTML = headHTML;
 
-/** ========== Login / Routing (Modified for ClickUp) ========== **/
-function showLogin(){ 
-    loginView.hidden=false; 
-    appView.hidden=true; 
-}
-
-function showApp(clickupUser){
-  user = clickupUser; // Set the global user object
-
-  loginView.hidden=true;
-  appView.hidden=false;
-  
-  userBadge.textContent = `${user.username} — ${user.role.toUpperCase()}`;
-  
-  // Logic for admin view will be added in a later step
-  $('#adminTools').style.display = 'none';
-  $('#adminPickerRow').style.display = 'none';
-
-  buildHead();
-}
-
-/** ========== Table Rendering (MODIFIED to use ClickUp data) ========== **/
-function buildHead(){
-  const thead = $('#thead');
-  thead.innerHTML='';
-  const tr1 = document.createElement('tr');
-  const baseTh = document.createElement('th');
-  baseTh.textContent='Project';
-  baseTh.className='proj-cell';
-  tr1.appendChild(baseTh);
-
-  const weekDays = [];
-  for(let i=0;i<5;i++){
-      const d=addDays(weekStart,i);
-      weekDays.push(d);
-      const th=document.createElement('th');
-      th.innerHTML = `<div>${['Mon','Tue','Wed','Thu','Fri'][i]} • ${niceDate(d)}</div><div class="tiny">Est | Tracked</div>`;
-      tr1.appendChild(th);
-  }
-  const thT=document.createElement('th');
-  thT.innerHTML='<div>Total (Week)</div><div class="tiny">Est | Tracked</div>';
-  tr1.appendChild(thT);
-  $('#weekLabel').textContent = `${niceDate(weekDays[0])} — ${niceDate(weekDays[4])}`;
-  thead.appendChild(tr1);
-}
-
-// THIS IS THE NEW RENDER FUNCTION
-function render(tasks) {
-  const tbody=$('#tbody');
-  tbody.innerHTML='';
-  
-  if (!tasks || tasks.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px;">No projects assigned to you in the "Active Projects" view.</td></tr>`;
-      return;
-  }
-
-  tasks.forEach(task => {
-    const tr = document.createElement('tr');
-    tr.dataset.taskId = task.id; // Store ClickUp task ID
-
-    // Create the project cell (not editable)
-    const tdProj = document.createElement('td');
-    tdProj.className = 'proj-cell';
-    tdProj.textContent = task.name;
-    tr.appendChild(tdProj);
-
-    // Create the 5 daily input cells
-    for(let d = 0; d < 5; d++){
-      const td = document.createElement('td');
-      const box = document.createElement('div');
-      box.className = 'cellBox';
-
-      const est = document.createElement('input');
-      est.type = 'number';
-      est.step = '0.25';
-      est.min = '0';
-      est.placeholder = 'Est';
-      est.className = 'num est-input';
-      
-      const tracked = document.createElement('input');
-      tracked.type = 'number';
-      tracked.step = '0.25';
-      tracked.min = '0';
-      tracked.placeholder = 'Tracked';
-      tracked.className = 'num tracked-input';
-
-      box.append(est, tracked);
-      td.appendChild(box);
-      tr.appendChild(td);
+        // Build Body
+        if (!tasks || tasks.length === 0) {
+            timesheetBody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px;">No projects assigned to this user.</td></tr>`;
+            return;
+        }
+        
+        let bodyHTML = '';
+        tasks.forEach(task => {
+            bodyHTML += `<tr data-task-id="${task.id}">`;
+            bodyHTML += `<td class="proj-cell">${task.name}</td>`;
+            for (let i = 0; i < 5; i++) {
+                bodyHTML += `<td><input type="number" class="num" step="0.25" min="0" placeholder="0.00"></td>`;
+            }
+            bodyHTML += `</tr>`;
+        });
+        timesheetBody.innerHTML = bodyHTML;
     }
     
-    // Create the total cell
-    const tdTotal = document.createElement('td');
-    const tot = document.createElement('div');
-    tot.className = 'cellBox';
-    const estTot = document.createElement('input');
-    estTot.className = 'num';
-    estTot.disabled = true;
-    estTot.value = '0.00';
-    const trkTot = document.createElement('input');
-    trkTot.className = 'num';
-    trkTot.disabled = true;
-    trkTot.value = '0.00';
-    tot.append(estTot, trkTot);
-    tdTotal.appendChild(tot);
-    tr.appendChild(tdTotal);
-    
-    tbody.appendChild(tr);
-  });
-  
-  // We'll add footer and summary updates in the next step
-  updateAllSummaries();
-}
+    function getWeekDays() {
+        const today = new Date();
+        const dayOfWeek = (today.getDay() + 6) % 7;
+        const monday = new Date(today);
+        monday.setDate(today.getDate() - dayOfWeek);
+        const days = [];
+        for (let i = 0; i < 5; i++) {
+            const day = new Date(monday);
+            day.setDate(monday.getDate() + i);
+            days.push(day);
+        }
+        return days;
+    }
 
-function updateAllSummaries() {
-    // This function will be expanded in the next step to calculate totals
-    console.log("Updating summaries...");
-}
-
-
-// All other functions from your original file will be re-integrated
-// in the next steps as we add back their functionality (modals, saving, etc.)
-
-/** Boot */
-initAuth(); // Start the new ClickUp auth flow
+    // --- START THE APP ---
+    init();
 
 </script>
 </body>
