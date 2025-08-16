@@ -20,9 +20,9 @@
     .brand{display:flex; gap:10px; align-items:center}
     .logo{ width:34px; height:34px; display:grid; place-items:center; border-radius:10px; background:var(--accent); color:white; font-weight:800; }
     .wrap{padding:22px}
-    button{ appearance:none; border:1px solid var(--border); background:#11141a; color:var(--text); padding:10px 14px; border-radius:10px; cursor:pointer; }
-    button.primary{background:var(--accent); border-color:transparent; color:white; font-weight:600}
-    button.success{background:var(--accent-2); border-color:transparent; color:#06240f; font-weight:600}
+    button{ appearance:none; border:1px solid var(--border); background:#11141a; color:var(--text); padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600; }
+    button.primary{background:var(--accent); border-color:transparent; color:white;}
+    button.success{background:var(--accent-2); border-color:transparent; color:#06240f;}
     button.ghost{background:transparent}
     button:disabled{opacity:.6; cursor:not-allowed}
     input{ width:100%; background:var(--input); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px 12px; outline:none; }
@@ -57,7 +57,7 @@
     </div>
     <div class="controls">
       <span id="welcomeMessage" class="tiny"></span>
-      <button id="saveAll" class="success" disabled>Save (Coming Soon)</button>
+      <button id="saveAll" class="success">Save</button>
     </div>
   </header>
 
@@ -81,6 +81,14 @@
     const CLIENT_ID = '6JL5V3OXV2EZ426G9WH3G2SHSD1YZ43B';
     const REDIRECT_URI = 'https://l5-time-tracker.vercel.app'; // Your Vercel URL
 
+    // --- GLOBAL STATE ---
+    let appData = {
+        userId: null,
+        teamId: null,
+        accessToken: null
+    };
+    const weekDays = getWeekInfo();
+
     // --- DOM ELEMENTS ---
     const loginView = document.getElementById('loginView');
     const appView = document.getElementById('appView');
@@ -90,36 +98,35 @@
     const timesheetBody = document.getElementById('tbody');
     const timesheetHead = document.getElementById('thead');
     const timesheetFoot = document.getElementById('tfoot');
+    const saveButton = document.getElementById('saveAll');
 
     // --- UTILITIES ---
     const fmt = n => (isNaN(n) ? '0.00' : Number(n).toFixed(2));
     function getWeekInfo() {
         const today = new Date();
-        const dayOfWeek = (today.getDay() + 6) % 7; // Monday is 0, Sunday is 6
+        const dayOfWeek = (today.getDay() + 6) % 7;
         const monday = new Date(today);
         monday.setDate(today.getDate() - dayOfWeek);
         monday.setHours(0, 0, 0, 0);
-        
-        const weekDays = [];
+        const days = [];
         for (let i = 0; i < 5; i++) {
             const day = new Date(monday);
             day.setDate(monday.getDate() + i);
-            weekDays.push(day);
+            days.push(day);
         }
-        return weekDays;
+        return days;
     }
-    const weekDays = getWeekInfo();
 
-    // --- AUTHENTICATION & DATA FETCHING ---
+    // --- INITIALIZATION & AUTH ---
     window.onload = function() {
         const urlParams = new URLSearchParams(window.location.search);
         const authCode = urlParams.get('code');
-        const accessToken = localStorage.getItem('clickup_access_token');
+        appData.accessToken = localStorage.getItem('clickup_access_token');
 
-        if (accessToken) {
+        if (appData.accessToken) {
             loginView.classList.add('hidden');
             appView.classList.remove('hidden');
-            fetchData(accessToken);
+            fetchData(appData.accessToken);
         } else if (authCode) {
             loginView.classList.add('hidden');
             appView.classList.remove('hidden');
@@ -132,6 +139,60 @@
         window.location.href = authUrl;
     };
 
+    saveButton.onclick = async function() {
+        saveButton.textContent = 'Saving...';
+        saveButton.disabled = true;
+
+        const timeEntries = [];
+        const rows = timesheetBody.querySelectorAll('tr[data-task-id]');
+        rows.forEach(row => {
+            const taskId = row.dataset.taskId;
+            const inputs = row.querySelectorAll('.tracked-input');
+            inputs.forEach((input, index) => {
+                const hours = parseFloat(input.value);
+                if (hours > 0) {
+                    timeEntries.push({
+                        taskId: taskId,
+                        date: weekDays[index].toISOString(),
+                        hours: hours,
+                        userId: appData.userId
+                    });
+                }
+            });
+        });
+
+        try {
+            const response = await fetch('/api/save_time', {
+                method: 'POST',
+                headers: {
+                    'Authorization': appData.accessToken,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    timeEntries: timeEntries,
+                    teamId: appData.teamId
+                })
+            });
+
+            if (!response.ok) {
+                const errorInfo = await response.json();
+                throw new Error(errorInfo.error || 'Failed to save time entries.');
+            }
+            
+            saveButton.textContent = 'Saved! ✅';
+
+        } catch (error) {
+            console.error('Save Error:', error);
+            saveButton.textContent = 'Save Failed ❌';
+            alert(`Error saving time: ${error.message}`);
+        } finally {
+            setTimeout(() => {
+                saveButton.textContent = 'Save';
+                saveButton.disabled = false;
+            }, 2000);
+        }
+    };
+
     async function getAccessToken(code) {
         try {
             const response = await fetch('/api/get_token', {
@@ -142,9 +203,10 @@
             if (!response.ok) throw new Error('Failed to get access token');
             
             const data = await response.json();
-            localStorage.setItem('clickup_access_token', data.accessToken);
+            appData.accessToken = data.accessToken;
+            localStorage.setItem('clickup_access_token', appData.accessToken);
             window.history.replaceState({}, document.title, window.location.pathname);
-            fetchData(data.accessToken);
+            fetchData(appData.accessToken);
         } catch (error) {
             document.body.innerHTML = `<h1>Error</h1><p>Could not authenticate. Please try logging in again.</p>`;
         }
@@ -152,20 +214,21 @@
 
     async function fetchData(token) {
         try {
-            const response = await fetch('/api/get_data', {
-                headers: { 'Authorization': token }
-            });
+            const response = await fetch('/api/get_data', { headers: { 'Authorization': token } });
             if (!response.ok) {
                 const errorInfo = await response.json();
                 throw new Error(errorInfo.error || 'Failed to fetch data');
             }
             const data = await response.json();
             
+            // Save user and team info to global state
+            appData.userId = data.userId;
+            appData.teamId = data.teamId;
+
             welcomeMessage.textContent = `Welcome, ${data.username}!`;
             renderTimesheet(data.tasks);
 
         } catch (error) {
-            // If token is invalid, clear it and force re-login
             if (error.message.includes('token')) {
                 localStorage.removeItem('clickup_access_token');
                 window.location.href = REDIRECT_URI;
@@ -174,34 +237,31 @@
         }
     }
 
-    // --- TIMESHEET RENDERING ---
+    // --- TIMESHEET UI LOGIC ---
     function buildHead() {
         const niceDate = d => d.toLocaleDateString(undefined, {month:'short', day:'numeric'});
         weekLabel.textContent = `${niceDate(weekDays[0])} — ${niceDate(weekDays[4])}`;
-        
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<th class="proj-cell">Project</th>`;
-        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-        days.forEach((day, i) => {
-            tr.innerHTML += `<th><div>${day} • ${niceDate(weekDays[i])}</div></th>`;
+        let headHTML = `<tr><th class="proj-cell">Project</th>`;
+        ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].forEach((day, i) => {
+            headHTML += `<th><div>${day} • ${niceDate(weekDays[i])}</div></th>`;
         });
-        tr.innerHTML += `<th><div>Total</div></th>`;
-        timesheetHead.innerHTML = '';
-        timesheetHead.appendChild(tr);
+        headHTML += `<th><div>Total</div></th></tr>`;
+        timesheetHead.innerHTML = headHTML;
     }
 
     function renderTimesheet(tasks) {
         buildHead();
-        timesheetBody.innerHTML = ''; // Clear existing rows
+        timesheetBody.innerHTML = ''; 
 
         if (tasks.length === 0) {
             timesheetBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 40px;">You have no tasks assigned to you.</td></tr>`;
+            saveButton.disabled = true;
             return;
         }
 
         tasks.forEach(task => {
             const tr = document.createElement('tr');
-            tr.dataset.taskId = task.id;
+            tr.dataset.taskId = task.id; // Store task ID on the row
 
             let rowHTML = `<td class="proj-cell">${task.name}</td>`;
             for(let i = 0; i < 5; i++) {
@@ -215,17 +275,13 @@
         
         buildFooter();
         addInputListeners();
+        updateTotals(); // Initialize totals to zero
     }
     
     function buildFooter() {
-        const tr = document.createElement('tr');
-        let footerHTML = `<td class="proj-cell">All Projects Total</td>`;
-        for (let i=0; i<6; i++) { // 5 days + 1 total column
-            footerHTML += `<td><input class="num" disabled value="0.00"></td>`;
-        }
-        tr.innerHTML = footerHTML;
-        timesheetFoot.innerHTML = '';
-        timesheetFoot.appendChild(tr);
+        let footerHTML = `<tr><td class="proj-cell">All Projects Total</td>`;
+        for (let i=0; i<6; i++) footerHTML += `<td><input class="num" disabled value="0.00"></td>`;
+        timesheetFoot.innerHTML = footerHTML;
     }
 
     function addInputListeners() {
@@ -235,14 +291,12 @@
     }
     
     function updateTotals() {
-        const rows = timesheetBody.querySelectorAll('tr');
+        const rows = timesheetBody.querySelectorAll('tr[data-task-id]');
         const dailyTotals = [0, 0, 0, 0, 0];
         
-        // Calculate row and column totals
         rows.forEach(row => {
             let rowTotal = 0;
-            const inputs = row.querySelectorAll('.tracked-input');
-            inputs.forEach((input, index) => {
+            row.querySelectorAll('.tracked-input').forEach((input, index) => {
                 const val = parseFloat(input.value) || 0;
                 rowTotal += val;
                 dailyTotals[index] += val;
@@ -250,7 +304,6 @@
             row.querySelector('td:last-child input').value = fmt(rowTotal);
         });
         
-        // Update footer totals
         const footerCells = timesheetFoot.querySelectorAll('td');
         let grandTotal = 0;
         dailyTotals.forEach((total, index) => {
@@ -258,8 +311,6 @@
             grandTotal += total;
         });
         footerCells[footerCells.length - 1].querySelector('input').value = fmt(grandTotal);
-        
-        // Update header summary pill
         document.getElementById('sumTracked').textContent = `Tracked: ${fmt(grandTotal)}h`;
     }
 </script>
