@@ -5,31 +5,84 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ClickUp Time Tracker</title>
     <style>
-        body { font-family: system-ui, sans-serif; display: grid; place-content: center; height: 100vh; background: #1a1a1a; margin: 0; }
-        .login-btn { font-size: 18px; background: #7b68ee; color: white; padding: 14px 24px; border-radius: 8px; border: none; cursor: pointer; text-decoration: none; }
+        body { font-family: system-ui, sans-serif; display: grid; place-content: center; height: 100vh; background: #1a1a1a; margin: 0; color: white; text-align: center; }
+        .login-btn { font-size: 18px; background: #7b68ee; color: white; padding: 14px 24px; border-radius: 8px; border: none; cursor: pointer; text-decoration: none; display: inline-block; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
-    <a href="#" id="loginButton" class="login-btn">Login with ClickUp</a>
+    <div id="loginView">
+        <a href="#" id="loginButton" class="login-btn">Login with ClickUp</a>
+    </div>
+
+    <div id="appView" class="hidden">
+        <h1>Login Successful!</h1>
+        <p>We have your access token.</p>
+        <p>Next step: Fetching your tasks...</p>
+    </div>
 
     <script>
-        // Get the "Login" button element from the page
-        const loginButton = document.getElementById('loginButton');
-
-        // IMPORTANT: Replace the placeholder below with your actual Client ID
+        // --- CONFIGURATION ---
         const CLIENT_ID = '6JL5V3OXV2EZ426G9WH3G2SHSD1YZ43B';
-
-        // This is the temporary address we set up in ClickUp
         const REDIRECT_URI = 'http://127.0.0.1:5500';
 
-        // When the button is clicked, this function runs
+        // --- DOM ELEMENTS ---
+        const loginView = document.getElementById('loginView');
+        const appView = document.getElementById('appView');
+        const loginButton = document.getElementById('loginButton');
+
+        // --- AUTHENTICATION LOGIC ---
+
+        // This function runs as soon as the page loads
+        window.onload = function() {
+            // Check the URL for the temporary 'code' from ClickUp
+            const urlParams = new URLSearchParams(window.location.search);
+            const authCode = urlParams.get('code');
+
+            if (authCode) {
+                // If we have a code, hide the login button and get the real token
+                loginView.classList.add('hidden');
+                appView.classList.remove('hidden');
+                getAccessToken(authCode);
+            }
+        };
+
+        // When the login button is clicked
         loginButton.onclick = function() {
-            // It constructs the special ClickUp authorization URL
             const authUrl = `https://app.clickup.com/api?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
-            
-            // It redirects the user to that URL
             window.location.href = authUrl;
         };
+
+        // Function to exchange the code for an access token
+        async function getAccessToken(code) {
+            try {
+                // Call our secure serverless function
+                const response = await fetch('/api/get_token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: code }),
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to get access token');
+                }
+
+                const data = await response.json();
+                const accessToken = data.accessToken;
+                
+                console.log('SUCCESS! Your Access Token is:', accessToken);
+                
+                // Store the token securely for future use
+                localStorage.setItem('clickup_access_token', accessToken);
+
+                // Now we can remove the temporary code from the URL for a cleaner look
+                window.history.replaceState({}, document.title, window.location.pathname);
+
+            } catch (error) {
+                console.error('Error:', error);
+                appView.innerHTML = `<h1>Error</h1><p>Could not get access token. Check the console for details.</p>`;
+            }
+        }
     </script>
 </body>
 </html>
