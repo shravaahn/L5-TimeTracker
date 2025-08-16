@@ -1,122 +1,267 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-g">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ClickUp Time Tracker</title>
-    <style>
-        body { font-family: system-ui, sans-serif; display: grid; place-content: center; height: 100vh; background: #1a1a1a; margin: 0; color: white; text-align: center; }
-        .login-btn { font-size: 18px; background: #7b68ee; color: white; padding: 14px 24px; border-radius: 8px; border: none; cursor: pointer; text-decoration: none; display: inline-block; }
-        .hidden { display: none; }
-        #appView p { max-width: 400px; margin: 10px auto; }
-        #taskList { list-style: none; padding: 0; max-width: 500px; margin: 20px auto; text-align: left; }
-        #taskList li { background: #2a2a2a; padding: 12px; border-radius: 6px; margin-bottom: 8px; }
-    </style>
+  <meta charset="UTF-8" />
+  <title>L5 Time Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0f1115; --panel:#171a21; --muted:#8b94a7; --text:#e8ecf1;
+      --accent:#7b68ee; --accent-2:#22c55e; --warn:#f59e0b; --danger:#ef4444;
+      --border:#242a35; --input:#11141a;
+      --radius:12px;
+    }
+    *{box-sizing:border-box}
+    body{ margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial; color:var(--text); background:var(--bg); min-height:100vh; }
+    .center-view{ display:grid; place-content:center; min-height:100vh; padding:24px; }
+    .hidden{display:none}
+    .card{ width:min(1300px,100%); background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); box-shadow:0 10px 30px rgba(0,0,0,.35); overflow:hidden; }
+    header{ padding:18px 22px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); background:rgba(255,255,255,.02); }
+    .brand{display:flex; gap:10px; align-items:center}
+    .logo{ width:34px; height:34px; display:grid; place-items:center; border-radius:10px; background:var(--accent); color:white; font-weight:800; }
+    .wrap{padding:22px}
+    button{ appearance:none; border:1px solid var(--border); background:#11141a; color:var(--text); padding:10px 14px; border-radius:10px; cursor:pointer; }
+    button.primary{background:var(--accent); border-color:transparent; color:white; font-weight:600}
+    button.success{background:var(--accent-2); border-color:transparent; color:#06240f; font-weight:600}
+    button.ghost{background:transparent}
+    button:disabled{opacity:.6; cursor:not-allowed}
+    input{ width:100%; background:var(--input); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px 12px; outline:none; }
+    .grid{ overflow:auto; border:1px solid var(--border); border-radius:12px; margin-top:14px; }
+    table{border-collapse:separate; border-spacing:0; width:100%;}
+    thead th{ position:sticky; top:0; z-index:2; background:#12151c; color:#c8d2e3; border-bottom:1px solid var(--border); text-align:left; font-weight:600; padding:12px; white-space:nowrap; }
+    th, td{border-bottom:1px solid var(--border); padding:10px; vertical-align:middle; white-space:nowrap}
+    tbody tr:nth-child(even){background:rgba(255,255,255,.02)}
+    tfoot td{background:#10131a; color:#d7dfef; font-weight:600}
+    .proj-cell{min-width:300px; position:sticky; left:0; background:inherit; z-index:1}
+    .num{text-align:right}
+    .tiny{font-size:12px; color:var(--muted)}
+    .pill{ font-size:12px; padding:4px 8px; border:1px solid var(--border); border-radius:999px; color:#cbd5e1; background:#0f131a; }
+    .cellBox{display:grid; grid-template-columns:1fr; gap:6px}
+    .login-btn { font-size: 18px; background: var(--accent); color: white; padding: 14px 24px; border-radius: 8px; border: none; cursor: pointer; text-decoration: none; display: inline-block; }
+  </style>
 </head>
 <body>
-    <div id="loginView">
-        <a href="#" id="loginButton" class="login-btn">Login with ClickUp</a>
+
+<div id="loginView" class="center-view">
+    <a href="#" id="loginButton" class="login-btn">Login with ClickUp</a>
+</div>
+
+<div id="appView" class="card hidden">
+  <header>
+    <div class="brand">
+      <div class="logo">L5</div>
+      <div>
+        <div style="font-weight:800">Time Tracking</div>
+        <div class="muted" id="weekLabel"></div>
+      </div>
+    </div>
+    <div class="controls">
+      <span id="welcomeMessage" class="tiny"></span>
+      <button id="saveAll" class="success" disabled>Save (Coming Soon)</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="sumbar">
+      <span class="pill" id="sumTracked">Tracked: 0.00h</span>
     </div>
 
-    <div id="appView" class="hidden">
-        <h1 id="welcomeMessage">Loading...</h1>
-        <p id="statusText"></p>
-        <ul id="taskList"></ul>
+    <div class="grid">
+      <table id="timesheet">
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+        <tfoot id="tfoot"></tfoot>
+      </table>
     </div>
+  </div>
+</div>
 
-    <script>
-        // --- CONFIGURATION ---
-        const CLIENT_ID = '6JL5V3OXV2EZ426G9WH3G2SHSD1YZ43B';
-        const REDIRECT_URI = 'https://l5-time-tracker.vercel.app'; // Your Vercel URL
+<script>
+    // --- CONFIGURATION ---
+    const CLIENT_ID = '6JL5V3OXV2EZ426G9WH3G2SHSD1YZ43B';
+    const REDIRECT_URI = 'https://l5-time-tracker.vercel.app'; // Your Vercel URL
 
-        // --- DOM ELEMENTS ---
-        const loginView = document.getElementById('loginView');
-        const appView = document.getElementById('appView');
-        const loginButton = document.getElementById('loginButton');
-        const welcomeMessage = document.getElementById('welcomeMessage');
-        const statusText = document.getElementById('statusText');
-        const taskList = document.getElementById('taskList');
+    // --- DOM ELEMENTS ---
+    const loginView = document.getElementById('loginView');
+    const appView = document.getElementById('appView');
+    const loginButton = document.getElementById('loginButton');
+    const welcomeMessage = document.getElementById('welcomeMessage');
+    const weekLabel = document.getElementById('weekLabel');
+    const timesheetBody = document.getElementById('tbody');
+    const timesheetHead = document.getElementById('thead');
+    const timesheetFoot = document.getElementById('tfoot');
 
-        // --- LOGIC ---
+    // --- UTILITIES ---
+    const fmt = n => (isNaN(n) ? '0.00' : Number(n).toFixed(2));
+    function getWeekInfo() {
+        const today = new Date();
+        const dayOfWeek = (today.getDay() + 6) % 7; // Monday is 0, Sunday is 6
+        const monday = new Date(today);
+        monday.setDate(today.getDate() - dayOfWeek);
+        monday.setHours(0, 0, 0, 0);
+        
+        const weekDays = [];
+        for (let i = 0; i < 5; i++) {
+            const day = new Date(monday);
+            day.setDate(monday.getDate() + i);
+            weekDays.push(day);
+        }
+        return weekDays;
+    }
+    const weekDays = getWeekInfo();
 
-        window.onload = function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const authCode = urlParams.get('code');
-            const accessToken = localStorage.getItem('clickup_access_token');
+    // --- AUTHENTICATION & DATA FETCHING ---
+    window.onload = function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const authCode = urlParams.get('code');
+        const accessToken = localStorage.getItem('clickup_access_token');
 
-            if (accessToken) {
-                loginView.classList.add('hidden');
-                appView.classList.remove('hidden');
-                fetchData(accessToken);
-            } else if (authCode) {
-                loginView.classList.add('hidden');
-                appView.classList.remove('hidden');
-                getAccessToken(authCode);
+        if (accessToken) {
+            loginView.classList.add('hidden');
+            appView.classList.remove('hidden');
+            fetchData(accessToken);
+        } else if (authCode) {
+            loginView.classList.add('hidden');
+            appView.classList.remove('hidden');
+            getAccessToken(authCode);
+        }
+    };
+
+    loginButton.onclick = function() {
+        const authUrl = `https://app.clickup.com/api?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
+        window.location.href = authUrl;
+    };
+
+    async function getAccessToken(code) {
+        try {
+            const response = await fetch('/api/get_token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: code }),
+            });
+            if (!response.ok) throw new Error('Failed to get access token');
+            
+            const data = await response.json();
+            localStorage.setItem('clickup_access_token', data.accessToken);
+            window.history.replaceState({}, document.title, window.location.pathname);
+            fetchData(data.accessToken);
+        } catch (error) {
+            document.body.innerHTML = `<h1>Error</h1><p>Could not authenticate. Please try logging in again.</p>`;
+        }
+    }
+
+    async function fetchData(token) {
+        try {
+            const response = await fetch('/api/get_data', {
+                headers: { 'Authorization': token }
+            });
+            if (!response.ok) {
+                const errorInfo = await response.json();
+                throw new Error(errorInfo.error || 'Failed to fetch data');
             }
-        };
+            const data = await response.json();
+            
+            welcomeMessage.textContent = `Welcome, ${data.username}!`;
+            renderTimesheet(data.tasks);
 
-        loginButton.onclick = function() {
-            const authUrl = `https://app.clickup.com/api?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
-            window.location.href = authUrl;
-        };
-
-        async function getAccessToken(code) {
-            try {
-                statusText.textContent = 'Authenticating...';
-                const response = await fetch('/api/get_token', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code: code }),
-                });
-
-                if (!response.ok) throw new Error('Failed to get access token');
-
-                const data = await response.json();
-                localStorage.setItem('clickup_access_token', data.accessToken);
-                window.history.replaceState({}, document.title, window.location.pathname);
-                fetchData(data.accessToken);
-
-            } catch (error) {
-                welcomeMessage.textContent = 'Error';
-                statusText.textContent = `Could not get access token.`;
+        } catch (error) {
+            // If token is invalid, clear it and force re-login
+            if (error.message.includes('token')) {
+                localStorage.removeItem('clickup_access_token');
+                window.location.href = REDIRECT_URI;
             }
+            document.body.innerHTML = `<h1>Error</h1><p>${error.message}</p>`;
+        }
+    }
+
+    // --- TIMESHEET RENDERING ---
+    function buildHead() {
+        const niceDate = d => d.toLocaleDateString(undefined, {month:'short', day:'numeric'});
+        weekLabel.textContent = `${niceDate(weekDays[0])} — ${niceDate(weekDays[4])}`;
+        
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<th class="proj-cell">Project</th>`;
+        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+        days.forEach((day, i) => {
+            tr.innerHTML += `<th><div>${day} • ${niceDate(weekDays[i])}</div></th>`;
+        });
+        tr.innerHTML += `<th><div>Total</div></th>`;
+        timesheetHead.innerHTML = '';
+        timesheetHead.appendChild(tr);
+    }
+
+    function renderTimesheet(tasks) {
+        buildHead();
+        timesheetBody.innerHTML = ''; // Clear existing rows
+
+        if (tasks.length === 0) {
+            timesheetBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 40px;">You have no tasks assigned to you.</td></tr>`;
+            return;
         }
 
-        async function fetchData(token) {
-            try {
-                statusText.textContent = 'Fetching your data...';
+        tasks.forEach(task => {
+            const tr = document.createElement('tr');
+            tr.dataset.taskId = task.id;
 
-                const response = await fetch('/api/get_data', {
-                    headers: { 'Authorization': token }
-                });
-
-                if (!response.ok) {
-                    const errorInfo = await response.json();
-                    throw new Error(errorInfo.error || 'Failed to fetch data from our server');
-                }
-
-                const data = await response.json();
-
-                welcomeMessage.textContent = `Welcome, ${data.username}!`;
-
-                if (data.tasks.length === 0) {
-                    statusText.textContent = `You have no tasks assigned to you in ${data.teamName}.`;
-                } else {
-                    statusText.textContent = `Found ${data.tasks.length} assigned tasks in ${data.teamName}:`;
-                }
-
-                taskList.innerHTML = '';
-                data.tasks.forEach(task => {
-                    const listItem = document.createElement('li');
-                    listItem.textContent = task.name;
-                    taskList.appendChild(listItem);
-                });
-
-            } catch (error) {
-                welcomeMessage.textContent = 'Error';
-                statusText.textContent = error.message;
+            let rowHTML = `<td class="proj-cell">${task.name}</td>`;
+            for(let i = 0; i < 5; i++) {
+                rowHTML += `<td><div class="cellBox"><input type="number" step="0.25" min="0" class="num tracked-input" placeholder="0.00"></div></td>`;
             }
+            rowHTML += `<td><div class="cellBox"><input type="number" class="num" disabled value="0.00"></div></td>`;
+            
+            tr.innerHTML = rowHTML;
+            timesheetBody.appendChild(tr);
+        });
+        
+        buildFooter();
+        addInputListeners();
+    }
+    
+    function buildFooter() {
+        const tr = document.createElement('tr');
+        let footerHTML = `<td class="proj-cell">All Projects Total</td>`;
+        for (let i=0; i<6; i++) { // 5 days + 1 total column
+            footerHTML += `<td><input class="num" disabled value="0.00"></td>`;
         }
-    </script>
+        tr.innerHTML = footerHTML;
+        timesheetFoot.innerHTML = '';
+        timesheetFoot.appendChild(tr);
+    }
+
+    function addInputListeners() {
+        document.querySelectorAll('.tracked-input').forEach(input => {
+            input.addEventListener('input', updateTotals);
+        });
+    }
+    
+    function updateTotals() {
+        const rows = timesheetBody.querySelectorAll('tr');
+        const dailyTotals = [0, 0, 0, 0, 0];
+        
+        // Calculate row and column totals
+        rows.forEach(row => {
+            let rowTotal = 0;
+            const inputs = row.querySelectorAll('.tracked-input');
+            inputs.forEach((input, index) => {
+                const val = parseFloat(input.value) || 0;
+                rowTotal += val;
+                dailyTotals[index] += val;
+            });
+            row.querySelector('td:last-child input').value = fmt(rowTotal);
+        });
+        
+        // Update footer totals
+        const footerCells = timesheetFoot.querySelectorAll('td');
+        let grandTotal = 0;
+        dailyTotals.forEach((total, index) => {
+            footerCells[index + 1].querySelector('input').value = fmt(total);
+            grandTotal += total;
+        });
+        footerCells[footerCells.length - 1].querySelector('input').value = fmt(grandTotal);
+        
+        // Update header summary pill
+        document.getElementById('sumTracked').textContent = `Tracked: ${fmt(grandTotal)}h`;
+    }
+</script>
 </body>
 </html>
