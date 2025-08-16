@@ -3,22 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ClickUp ID Finder</title>
+    <title>ClickUp Final ID Test</title>
     <style>
         body { font-family: system-ui, sans-serif; background: #1a1a1a; margin: 20px; color: white; }
-        table { border-collapse: collapse; width: 100%; margin-top: 20px; font-size: 14px; }
-        th, td { border: 1px solid #444; padding: 12px; text-align: left; }
-        th { background: #2a2a2a; }
-        .space-row td { font-weight: bold; background-color: #222; }
-        .view-row td { padding-left: 40px; }
-        .id { font-family: monospace; color: #a5d6ff; }
-        .type { color: #f59e0b; }
+        pre { background: #2a2a2a; padding: 15px; border-radius: 8px; white-space: pre-wrap; word-wrap: break-word; }
+        .success { border: 2px solid #22c55e; }
+        .error { border: 2px solid #ef4444; }
     </style>
 </head>
 <body>
-    <h1>ClickUp Workspace Structure</h1>
-    <p>Find your "Active Projects" view below and copy its numeric <strong>ID</strong>.</p>
-    <table id="structureTable"></table>
+    <h1>Final ID Test</h1>
+    <p>The result of trying to fetch tasks with View ID <strong>k6hww-66631</strong> is below.</p>
+    <pre id="output">Loading...</pre>
 
     <script>
         const CLIENT_ID = '6JL5V3OXV2EZ426G9WH3G2SHSD1YZ43B';
@@ -27,7 +23,7 @@
         window.onload = function() {
             const accessToken = localStorage.getItem('clickup_access_token');
             if (accessToken) {
-                findIds(accessToken);
+                runTest(accessToken);
             } else {
                  const urlParams = new URLSearchParams(window.location.search);
                  if (!urlParams.has('code')) {
@@ -35,35 +31,26 @@
                  }
             }
         };
-
-        async function findIds(token) {
-            const table = document.getElementById('structureTable');
-            table.innerHTML = `<tr><th>Item Name</th><th>Type</th><th>ID</th></tr>`;
+        
+        async function runTest(token) {
+            const output = document.getElementById('output');
             try {
-                const response = await fetch('/api/find_ids', {
+                const response = await fetch('/api/test_view', {
                     headers: { 'Authorization': token }
                 });
                 const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'Failed to fetch workspace structure.');
 
-                if (data.structure.length === 0) {
-                    table.innerHTML += `<tr><td colspan="3">No spaces found.</td></tr>`;
-                    return;
+                if (!response.ok) {
+                    output.classList.add('error');
+                    throw new Error(JSON.stringify(data, null, 2));
                 }
 
-                data.structure.forEach(space => {
-                    table.innerHTML += `<tr class="space-row"><td colspan="2">SPACE: ${space.spaceName}</td><td class="id">${space.spaceId}</td></tr>`;
-                    if (space.views.length > 0) {
-                        space.views.forEach(view => {
-                            table.innerHTML += `<tr class="view-row"><td>- ${view.viewName}</td><td class="type">${view.viewType}</td><td class="id">${view.viewId}</td></tr>`;
-                        });
-                    } else {
-                        table.innerHTML += `<tr class="view-row"><td colspan="3">- No views found in this space</td></tr>`;
-                    }
-                });
+                output.classList.add('success');
+                output.textContent = "SUCCESS! It worked. The tasks are:\n\n" + JSON.stringify(data, null, 2);
 
             } catch (error) {
-                table.innerHTML += `<tr><td colspan="3">Error: ${error.message}</td></tr>`;
+                output.classList.add('error');
+                output.textContent = "FAILED. The API returned an error:\n\n" + error.message;
             }
         }
     </script>
