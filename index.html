@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClickUp Time Tracker</title>
+    <style>
+        body { font-family: system-ui, sans-serif; display: grid; place-content: center; height: 100vh; background: #1a1a1a; margin: 0; }
+        .login-btn { font-size: 18px; background: #7b68ee; color: white; padding: 14px 24px; border-radius: 8px; border: none; cursor: pointer; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <a href="#" id="loginButton" class="login-btn">Login with ClickUp</a>
+
+    <script>
+        // Get the "Login" button element from the page
+        const loginButton = document.getElementById('loginButton');
+
+        // IMPORTANT: Replace the placeholder below with your actual Client ID
+        const CLIENT_ID = '6JL5V3OXV2EZ426G9WH3G2SHSD1YZ43B';
+
+        // This is the temporary address we set up in ClickUp
+        const REDIRECT_URI = 'http://127.0.0.1:5500';
+
+        // When the button is clicked, this function runs
+        loginButton.onclick = function() {
+            // It constructs the special ClickUp authorization URL
+            const authUrl = `https://app.clickup.com/api?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
+            
+            // It redirects the user to that URL
+            window.location.href = authUrl;
+        };
+    </script>
+</body>
+</html>
