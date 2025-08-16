@@ -3,25 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ClickUp ID Finder</title>
+    <title>ClickUp Workspace Finder</title>
     <style>
         body { font-family: system-ui, sans-serif; background: #1a1a1a; margin: 20px; color: white; }
-        .hidden { display: none; }
-        table { border-collapse: collapse; width: 100%; margin-top: 20px; font-size: 14px; }
-        th, td { border: 1px solid #444; padding: 12px; text-align: left; }
-        th { background: #2a2a2a; }
-        .space-row td { font-weight: bold; background-color: #222; }
-        .view-row td { padding-left: 40px; }
-        .id { font-family: monospace; color: #a5d6ff; }
-        .type { color: #f59e0b; }
+        pre { background: #2a2a2a; padding: 15px; border-radius: 8px; white-space: pre-wrap; word-wrap: break-word; }
     </style>
 </head>
 <body>
-    <div id="appView" class="hidden">
-        <h1>ClickUp Workspace Structure</h1>
-        <p>Find your "Active Projects" view below and copy its numeric **ID**.</p>
-        <table id="structureTable"></table>
-    </div>
+    <h1>ClickUp Workspace Finder</h1>
+    <p>The text below shows the Workspaces (Teams) your account is authorized to access with this app.</p>
+    <pre id="output">Loading...</pre>
 
     <script>
         const CLIENT_ID = '6JL5V3OXV2EZ426G9WH3G2SHSD1YZ43B';
@@ -30,8 +21,7 @@
         window.onload = function() {
             const accessToken = localStorage.getItem('clickup_access_token');
             if (accessToken) {
-                document.getElementById('appView').classList.remove('hidden');
-                findIds(accessToken);
+                runTest(accessToken);
             } else {
                  const urlParams = new URLSearchParams(window.location.search);
                  if (!urlParams.has('code')) {
@@ -40,35 +30,18 @@
             }
         };
         
-        async function findIds(token) {
-            const table = document.getElementById('structureTable');
-            table.innerHTML = `<tr><th>Item Name</th><th>Type</th><th>ID</th></tr>`;
+        async function runTest(token) {
+            const output = document.getElementById('output');
             try {
-                const response = await fetch('/api/find_ids', {
+                const response = await fetch('/api/get_teams', {
                     headers: { 'Authorization': token }
                 });
-                if (!response.ok) throw new Error('Failed to fetch workspace structure.');
-                
                 const data = await response.json();
-                
-                if (data.structure.length === 0) {
-                    table.innerHTML += `<tr><td colspan="3">No spaces found.</td></tr>`;
-                    return;
-                }
+                if (!response.ok) throw new Error(data.error || 'Failed to fetch from our API.');
 
-                data.structure.forEach(space => {
-                    table.innerHTML += `<tr class="space-row"><td colspan="2">SPACE: ${space.spaceName}</td><td class="id">${space.spaceId}</td></tr>`;
-                    if (space.views.length > 0) {
-                        space.views.forEach(view => {
-                            table.innerHTML += `<tr class="view-row"><td>- ${view.viewName}</td><td class="type">${view.viewType}</td><td class="id">${view.viewId}</td></tr>`;
-                        });
-                    } else {
-                        table.innerHTML += `<tr class="view-row"><td colspan="3">- No views found in this space</td></tr>`;
-                    }
-                });
-
+                output.textContent = JSON.stringify(data, null, 2);
             } catch (error) {
-                table.innerHTML += `<tr><td colspan="3">Error: ${error.message}</td></tr>`;
+                output.textContent = `Error: ${error.message}`;
             }
         }
     </script>
