@@ -114,25 +114,11 @@
   </header>
   <div class="wrap">
     <div id="adminPickerRow" class="pickerRow" style="display:none">
-      <span class="label">Month:</span>
-      <select id="monthPicker" style="min-width:180px"></select>
-      <span class="label">Week:</span>
-      <select id="weekPicker" style="min-width:260px"></select>
-      <span class="label">Consultant:</span>
-      <select id="consultantPicker" style="min-width:220px"></select>
-      <span class="tiny" id="consultantCount"></span>
-      <span class="right"></span>
-      <div class="togglegrp">
-        <span class="label">View:</span>
-        <button id="viewWeek" class="primary">Week</button>
-        <button id="viewMonth" class="ghost">Month</button>
       </div>
-    </div>
     <div class="sumbar">
       <span class="pill" id="sumEst">Est: 0.00h</span>
       <span class="pill" id="sumTracked">Tracked: 0.00h</span>
       <span class="pill" id="sumDelta">Δ (Tracked–Est): 0.00h</span>
-      <span class="right tiny" id="periodLabel">Period: Week</span>
     </div>
     <div class="grid">
       <table id="timesheet">
@@ -142,88 +128,24 @@
       </table>
     </div>
     <div id="adminTools" style="margin-top:12px; display:none">
-      <div class="muted" style="margin-bottom:8px">Admin tools:</div>
-      <div class="dash">
-        <div class="kpi"><div class="label" id="kpiEstLabel">Total Est Hours (Week)</div><div class="value" id="kpiEst">0.00h</div></div>
-        <div class="kpi"><div class="label" id="kpiTrackedLabel">Total Tracked Hours (Week)</div><div class="value" id="kpiTracked">0.00h</div></div>
-        <div class="kpi delta" id="kpiDeltaBox"><div class="label" id="kpiDeltaTitle">Δ Tracked – Est</div><div class="value" id="kpiDelta">0.00h</div></div>
       </div>
-      <div class="chartbox">
-        <div class="title" id="dailyChartTitle">Daily Totals (Est vs Tracked) — Week</div>
-        <canvas id="barChart" width="1200" height="220"></canvas>
-      </div>
-      <div class="chartbox">
-        <div class="title">Consultants (Est vs Tracked) — Selected Period</div>
-        <canvas id="consultantChart" width="1200" height="260"></canvas>
-      </div>
-      <div style="margin-top:10px">
-        <button id="unlockAll" class="">Unlock all estimates (visible period)</button>
-      </div>
-    </div>
   </div>
 </div>
 
 <div id="modalBackdrop" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-  <div class="modal">
-    <header>
-      <h3 id="modalTitle">Time Entry</h3>
-      <span class="badge" id="modalContext">—</span>
-    </header>
-    <div class="row">
-      <label>Type
-        <select id="timeType">
-          <option value="">— Select —</option>
-          <option>billable | Meeting</option>
-          <option>billable | Builds</option>
-          <option>billable | Client Correspondence</option>
-          <option>PTO</option>
-          <option>Holiday</option>
-          <option>Non BIllable | Internal Team Meeting</option>
-          <option>Non BIllable | Internal Projects</option>
-          <option>Non BIllable | L&D</option>
-          <option>Non BIllable | PreSales/Sales</option>
-          <option>Non BIllable | Client Research</option>
-          <option>Non BIllable | Partner Engagement</option>
-        </select>
-      </label>
     </div>
-    <div class="row" id="subTypeRow" style="display:none">
-      <label>Sub Type
-        <select id="subType">
-          <option value="">— Select —</option>
-          <option>Firm Initiative</option>
-          <option>Internal Delivery project</option>
-          <option>Recruitment</option>
-          <option>Special Projects</option>
-          <option>Events</option>
-        </select>
-      </label>
-    </div>
-    <div class="row two">
-      <label>Hours
-        <input id="modalHours" type="number" min="0" step="0.25" placeholder="e.g., 1.5" />
-      </label>
-      <div>
-        <div class="help">Only Hours will show in the table. All fields are saved for reporting.</div>
-      </div>
-    </div>
-    <footer>
-      <button id="modalCancel" class="ghost">Cancel</button>
-      <button id="modalSave" class="primary">Save</button>
-    </footer>
-  </div>
-</div>
 
 <script>
 // --- START: CLICKUP INTEGRATION ---
 
-const CLIENT_ID = '6JL5V3OXV2EZ426G9WH3G2SHSD1YZ43B';
+const CLIENT_ID = 'PASTE_YOUR_CLIENT_ID_HERE';
 const REDIRECT_URI = 'https://l5-time-tracker.vercel.app'; // Your Vercel URL
 
 const loginView = document.getElementById('loginView');
 const appView = document.getElementById('app');
 const loginButton = document.getElementById('loginButton');
 const authContainer = document.getElementById('authContainer');
+const userBadge = document.getElementById('userBadge');
 
 function initAuth() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -242,6 +164,12 @@ function initAuth() {
 loginButton.onclick = function() {
     const authUrl = `https://app.clickup.com/api?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
     window.location.href = authUrl;
+};
+
+document.getElementById('logout').onclick = function() {
+    localStorage.removeItem('clickup_access_token');
+    user = null; // Clear the user from your original script's state
+    showLogin();
 };
 
 async function getAccessToken(code) {
@@ -264,26 +192,44 @@ async function getAccessToken(code) {
 }
 
 async function fetchClickUpData(token) {
-    // This is the new entry point after a successful login.
-    // In our next step, we will call our '/api/get_data' helper here
-    // and use the response to populate your timesheet.
-    
-    // For now, we will just call your original "showApp" function.
-    // This will render your UI with its old localStorage logic for now.
-    console.log("Logged in with ClickUp! Ready to fetch data.");
-    
-    // This is a placeholder for the real user object from ClickUp
-    const clickupUser = {
-        username: 'ClickUp User',
-        role: 'consultant' // We'll get the real role later
-    };
-    
-    // Call your original `showApp` function with the placeholder user
-    showApp(clickupUser);
+    try {
+        const response = await fetch('/api/get_data', { headers: { 'Authorization': token } });
+        if (!response.ok) {
+            const errorInfo = await response.json();
+            throw new Error(errorInfo.error || 'Failed to fetch data');
+        }
+        const data = await response.json();
+        
+        // ClickUp roles: 1=owner, 2=admin, 3=member, 4=guest
+        // Your clarification: consultant=member
+        let roleName = 'consultant'; // Default role
+        if (data.role <= 2) {
+            roleName = 'admin';
+        }
+
+        const clickupUser = {
+            id: data.userId,
+            username: data.username,
+            role: roleName,
+            teamId: data.teamId,
+            allTasks: data.tasks // Store all tasks if admin
+        };
+        
+        showApp(clickupUser); // Show the main application UI
+        render(data.tasks); // Render the timesheet with tasks from ClickUp
+
+    } catch (error) {
+        // If token is invalid, clear it and force re-login
+        if (error.message.includes('token')) {
+            localStorage.removeItem('clickup_access_token');
+            initAuth();
+        } else {
+            document.body.innerHTML = `<h1>Error</h1><p>${error.message}</p>`;
+        }
+    }
 }
 
 // --- END: CLICKUP INTEGRATION ---
-
 
 /** ========== Utilities & State (Your Original Code) ========== **/
 const $ = s => document.querySelector(s);
@@ -291,46 +237,10 @@ const fmt = n => (isNaN(n)? '0.00' : Number(n).toFixed(2));
 const today = new Date();
 function startOfWeek(d){ const date = new Date(d); const day = (date.getDay()+6)%7; date.setDate(date.getDate()-day); date.setHours(0,0,0,0); return date; }
 function addDays(d, n){ const x = new Date(d); x.setDate(x.getDate()+n); return x; }
-function ymd(d){ return d.toISOString().slice(0,10); }
 function niceDate(d){ return d.toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
-function keyFor(u, weekStart){ return `tt.v1::${u.username}::${u.role}::${ymd(weekStart)}`; }
-const days = ['Mon','Tue','Wed','Thu','Fri'];
 
-// We will replace this 'user' variable with data from ClickUp
 let user = null;
-let adminViewUser = null;
 let weekStart = startOfWeek(today);
-let data = { rows: [] };
-let viewMode = 'week';
-let modalCtx = null;
-
-function getActiveIdentity(){ if (user?.role==='admin' && adminViewUser) return adminViewUser; return user; }
-function weeksInMonth(year, monthIndex){ /* ... your original code ... */
-  const res = [];
-  const firstOfMonth = new Date(year, monthIndex, 1);
-  let m = startOfWeek(firstOfMonth);
-  while (m.getMonth() <= monthIndex){
-    if (m.getMonth() === monthIndex) res.push(new Date(m));
-    m = addDays(m,7);
-    if (m.getMonth() > monthIndex && m.getDate() > 7) break;
-  }
-  return res;
-}
-function labelWeekRange(monday){ const fri = addDays(monday,4); return `${niceDate(monday)} — ${niceDate(fri)}`; }
-function buildMonthOptions(current){ const out=[]; const base=new Date(current); base.setDate(1); for(let i=-5;i<=6;i++){ out.push(new Date(base.getFullYear(), base.getMonth()+i, 1)); } return out; }
-
-/** ========== Persistence (Will be replaced) ========== **/
-function load(){
-  const active = getActiveIdentity();
-  const raw = localStorage.getItem(keyFor(active, weekStart));
-  data = raw ? JSON.parse(raw) : { rows: [] };
-  if (data.rows.length === 0) {
-    data.rows.push({ project:'', cells:{} });
-  }
-  render();
-}
-function save(){ localStorage.setItem(keyFor(getActiveIdentity(), weekStart), JSON.stringify(data)); updateAllSummaries(); alert('Saved ✅'); }
-function saveSilent(){ localStorage.setItem(keyFor(getActiveIdentity(), weekStart), JSON.stringify(data)); }
 
 /** ========== Login / Routing (Modified for ClickUp) ========== **/
 function showLogin(){ 
@@ -338,347 +248,125 @@ function showLogin(){
     appView.hidden=true; 
 }
 
-// MODIFIED: `showApp` now receives the user object from ClickUp
 function showApp(clickupUser){
   user = clickupUser; // Set the global user object
 
   loginView.hidden=true;
   appView.hidden=false;
   
-  $('#userBadge').textContent = `${user.username} — ${user.role.toUpperCase()}`;
-  $('#adminTools').style.display = user.role==='admin' ? 'block' : 'none';
-  $('#adminPickerRow').style.display = user.role==='admin' ? 'flex' : 'none';
-  $('#viewingBadge').style.display='none';
-  viewMode='week';
+  userBadge.textContent = `${user.username} — ${user.role.toUpperCase()}`;
   
-  // We will connect these later with real data from ClickUp
-  // if (user.role==='admin'){ populateMonthWeekSelectors(); populateConsultantPicker(); setViewButtons(); }
-  
+  // Logic for admin view will be added in a later step
+  $('#adminTools').style.display = 'none';
+  $('#adminPickerRow').style.display = 'none';
+
   buildHead();
-  load(); // This still loads from localStorage for now
 }
 
-// REMOVED: `verify()` function is no longer needed.
-
-/** ========== Admin pickers (Will be reconnected) ========== **/
-function listConsultantsFromStorage(){ /* ... your original code ... */ 
-  const set = new Set();
-  for (let i=0;i<localStorage.length;i++){
-    const k = localStorage.key(i); if (!k || !k.startsWith('tt.v1::')) continue;
-    const parts = k.split('::'); if (parts.length!==4) continue;
-    const uname=parts[1], role=parts[2]; if (role==='consultant') set.add(uname);
-  }
-  return Array.from(set).sort();
-}
-function populateConsultantPicker(){ /* ... your original code ... */ 
-  const picker = $('#consultantPicker');
-  const all = listConsultantsFromStorage();
-  picker.innerHTML=''; const ph = document.createElement('option'); ph.value=''; ph.textContent='— Select consultant —'; picker.appendChild(ph);
-  all.forEach(u=>{ const opt=document.createElement('option'); opt.value=u; opt.textContent=u; picker.appendChild(opt); });
-  $('#consultantCount').textContent = all.length ? `${all.length} found` : 'No consultants found yet';
-  picker.onchange = ()=>{ const val=picker.value; adminViewUser = val? {username:val, role:'consultant'} : null;
-    $('#viewingBadge').style.display = adminViewUser ? 'inline-flex' : 'none';
-    $('#viewingBadge').textContent = adminViewUser ? `Viewing: ${adminViewUser.username}` : '';
-    buildHead(); load();
-  };
-  if (!adminViewUser && all.length){ picker.value = all[0]; adminViewUser = {username:all[0], role:'consultant'}; $('#viewingBadge').style.display='inline-flex'; $('#viewingBadge').textContent=`Viewing: ${adminViewUser.username}`; }
-}
-function populateMonthWeekSelectors(){ /* ... your original code ... */ 
-  const monthSel=$('#monthPicker'), weekSel=$('#weekPicker');
-  const months = buildMonthOptions(weekStart); monthSel.innerHTML='';
-  months.forEach(d=>{ const opt=document.createElement('option'); opt.value = `${d.getFullYear()}-${d.getMonth()}`; opt.textContent = d.toLocaleDateString(undefined,{month:'long',year:'numeric'}); if(d.getFullYear()===weekStart.getFullYear() && d.getMonth()===weekStart.getMonth()) opt.selected=true; monthSel.appendChild(opt); });
-  const refreshWeeks=()=>{
-    const [yStr,mStr] = monthSel.value.split('-'); const y=Number(yStr), m=Number(mStr);
-    const mondays=weeksInMonth(y,m); weekSel.innerHTML='';
-    mondays.forEach((mon,idx)=>{ const opt=document.createElement('option'); opt.value=ymd(mon); opt.textContent=`Week ${idx+1}: ${labelWeekRange(mon)}`; if(ymd(mon)===ymd(weekStart)) opt.selected=true; weekSel.appendChild(opt); });
-    if (!Array.from(weekSel.options).some(o=>o.value===ymd(weekStart)) && weekSel.options.length){ weekSel.selectedIndex=0; weekStart = startOfWeek(new Date(weekSel.value)); buildHead(); load(); }
-  };
-  monthSel.onchange = ()=>{ refreshWeeks(); if(viewMode==='month'){ buildHead(); render(); } };
-  weekSel.onchange  = ()=>{ weekStart = startOfWeek(new Date(weekSel.value)); buildHead(); load(); };
-  refreshWeeks();
-}
-function syncMonthWeekSelectorsToWeek(){ /* ... your original code ... */ 
-  if (user?.role!=='admin') return;
-  const monthSel=$('#monthPicker'), weekSel=$('#weekPicker'); if(!monthSel||!weekSel||!monthSel.options.length) return;
-  const key = `${weekStart.getFullYear()}-${weekStart.getMonth()}`; if (monthSel.value!==key){ populateMonthWeekSelectors(); return; }
-  for (let i=0;i<weekSel.options.length;i++){ if (weekSel.options[i].value===ymd(weekStart)){ weekSel.selectedIndex=i; break; } }
-}
-
-/** ========== The rest of your JavaScript is untouched below this line ========== **/
-function setViewButtons(){ /* ... your original code ... */ 
-  $('#viewWeek').className = viewMode==='week' ? 'primary' : 'ghost';
-  $('#viewMonth').className= viewMode==='month'? 'primary' : 'ghost';
-  $('#periodLabel').textContent = `Period: ${viewMode==='week' ? 'Week' : 'Month'}`;
-  $('#kpiEstLabel').textContent = `Total Est Hours (${viewMode==='week'?'Week':'Month'})`;
-  $('#kpiTrackedLabel').textContent = `Total Tracked Hours (${viewMode==='week'?'Week':'Month'})`;
-  $('#dailyChartTitle').textContent = `${viewMode==='week'?'Daily':'Weekly'} Totals (Est vs Tracked) — ${viewMode==='week'?'Week':'Month'}`;
-}
-function buildHead(){ /* ... your original code ... */ 
-  const thead = $('#thead'); thead.innerHTML='';
+/** ========== Table Rendering (MODIFIED to use ClickUp data) ========== **/
+function buildHead(){
+  const thead = $('#thead');
+  thead.innerHTML='';
   const tr1 = document.createElement('tr');
-  const baseTh = document.createElement('th'); baseTh.textContent='Project'; baseTh.className='proj-cell';
+  const baseTh = document.createElement('th');
+  baseTh.textContent='Project';
+  baseTh.className='proj-cell';
   tr1.appendChild(baseTh);
-  if (viewMode==='week'){
-    const wk=[]; for(let i=0;i<5;i++){ const d=addDays(weekStart,i); wk.push(d);
-      const th=document.createElement('th'); th.innerHTML = `<div>${['Mon','Tue','Wed','Thu','Fri'][i]} • ${niceDate(d)}</div><div class="tiny">Est | Tracked</div>`; tr1.appendChild(th); }
-    const thT=document.createElement('th'); thT.innerHTML='<div>Total (Week)</div><div class="tiny">Est | Tracked</div>'; tr1.appendChild(thT);
-    $('#weekLabel').textContent = `${niceDate(wk[0])} — ${niceDate(wk[4])}`;
-  }else{
-    const y=weekStart.getFullYear(), m=weekStart.getMonth(); const mondays=weeksInMonth(y,m);
-    mondays.forEach((mon,idx)=>{ const th=document.createElement('th'); th.innerHTML = `<div>Week ${idx+1}</div><div class="tiny">${labelWeekRange(mon)}</div>`; tr1.appendChild(th); });
-    const thT=document.createElement('th'); thT.innerHTML='<div>Total (Month)</div><div class="tiny">Est | Tracked</div>'; tr1.appendChild(thT);
-    if (mondays.length){ const start=new Date(y,m,1), end=new Date(y,m+1,0);
-      $('#weekLabel').textContent = `${start.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})} — ${end.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}`;
-    }
+
+  const weekDays = [];
+  for(let i=0;i<5;i++){
+      const d=addDays(weekStart,i);
+      weekDays.push(d);
+      const th=document.createElement('th');
+      th.innerHTML = `<div>${['Mon','Tue','Wed','Thu','Fri'][i]} • ${niceDate(d)}</div><div class="tiny">Est | Tracked</div>`;
+      tr1.appendChild(th);
   }
+  const thT=document.createElement('th');
+  thT.innerHTML='<div>Total (Week)</div><div class="tiny">Est | Tracked</div>';
+  tr1.appendChild(thT);
+  $('#weekLabel').textContent = `${niceDate(weekDays[0])} — ${niceDate(weekDays[4])}`;
   thead.appendChild(tr1);
-  syncMonthWeekSelectorsToWeek();
 }
-function render(){ /* ... your original code ... */ 
-  const tbody=$('#tbody'); tbody.innerHTML='';
-  if (viewMode==='week'){
-    if (!data.rows.length) addRow();
-    data.rows.forEach(row=>{
-      const tr=document.createElement('tr');
-      const tdProj=document.createElement('td'); tdProj.className='proj-cell';
-      const projInput=document.createElement('input'); projInput.placeholder='Project name'; projInput.value=row.project||'';
-      projInput.addEventListener('input', e=>{ row.project=e.target.value; saveSilent(); });
-      tdProj.appendChild(projInput); tr.appendChild(tdProj);
-      let rowEstTotal=0, rowTrkTotal=0;
-      for(let d=0; d<5; d++){
-        const td=document.createElement('td'); const c=row.cells[d] || {est:'',tracked:'',estLocked:false, trackedMeta:null}; row.cells[d]=c;
-        const box=document.createElement('div'); box.className='cellBox';
-        const est=document.createElement('input'); est.type='number'; est.step='0.25'; est.min='0'; est.placeholder='Est'; est.className='num'; est.value=c.est??'';
-        if (c.est !== '' && c.estLocked){ est.disabled=true; est.classList.add('locked'); est.title='Estimate locked'; }
-        est.addEventListener('change', e=>{
-          const val=e.target.value===''? '' : Math.max(0, Number(e.target.value));
-          c.est=val; if (val!==''){ c.estLocked=true; est.disabled=true; est.classList.add('locked'); est.title='Estimate locked'; }
-          saveSilent(); updateAllSummaries();
-        });
-        const tracked=document.createElement('input'); tracked.type='number'; tracked.step='0.25'; tracked.min='0'; tracked.placeholder='Tracked'; tracked.className='num'; tracked.value=c.tracked??'';
-        tracked.readOnly=true;
-        tracked.addEventListener('click', ()=> openTimeModal({wkMon:new Date(weekStart), row, dayIdx:d, c}));
-        rowEstTotal += Number(c.est||0); rowTrkTotal += Number(c.tracked||0);
-        box.append(est, tracked); td.appendChild(box);
-        if (c.estLocked && user.role==='admin'){
-          const tiny=document.createElement('div'); tiny.className='tiny';
-          const link=document.createElement('span'); link.className='linklike'; link.textContent='Unlock est';
-          link.addEventListener('click', ()=>{ c.estLocked=false; est.disabled=false; est.classList.remove('locked'); est.title=''; saveSilent(); updateAllSummaries(); });
-          tiny.appendChild(link); td.appendChild(tiny);
-        }
-        if (c.trackedMeta?.type){
-          const tag=document.createElement('div'); tag.className='tiny'; tag.textContent=`${c.trackedMeta.type}${c.trackedMeta.subType? ' • '+c.trackedMeta.subType:''}`;
-          td.appendChild(tag);
-        }
-        tr.appendChild(td);
-      }
-      const tdTotal=document.createElement('td');
-      const tot=document.createElement('div'); tot.className='cellBox';
-      const estTot=document.createElement('input'); estTot.className='num locked'; estTot.disabled=true; estTot.value=fmt(rowEstTotal);
-      const trkTot=document.createElement('input'); trkTot.className='num'; trkTot.disabled=true; trkTot.value=fmt(rowTrkTotal);
-      tot.append(estTot, trkTot); tdTotal.appendChild(tot); tr.appendChild(tdTotal);
-      tbody.appendChild(tr);
-    });
-    buildFooterTotalsWeek();
-  }else{
-    renderMonthlyWeeksTable();
+
+// THIS IS THE NEW RENDER FUNCTION
+function render(tasks) {
+  const tbody=$('#tbody');
+  tbody.innerHTML='';
+  
+  if (!tasks || tasks.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px;">No projects assigned to you in the "Active Projects" view.</td></tr>`;
+      return;
   }
-  updateAllSummaries();
-}
-function renderMonthlyWeeksTable(){ /* ... your original code ... */ 
-  const tbody=$('#tbody'); tbody.innerHTML=''; const tfoot=$('#tfoot'); tfoot.innerHTML='';
-  const who=getActiveIdentity(); const y=weekStart.getFullYear(), m=weekStart.getMonth(); const mondays=weeksInMonth(y,m);
-  const projectSet=new Set();
-  mondays.forEach(mon=>{ const obj=JSON.parse(localStorage.getItem(keyFor(who, mon))||'{"rows":[]}'); (obj.rows||[]).forEach(r=>projectSet.add((r.project||'').trim())); });
-  if (projectSet.size===0) projectSet.add('');
-  const projects=Array.from(projectSet);
-  projects.forEach(projectName=>{
-    const tr=document.createElement('tr');
-    const tdProj=document.createElement('td'); tdProj.className='proj-cell';
-    const projInput=document.createElement('input'); projInput.placeholder='Project name'; projInput.value=projectName||'';
-    projInput.addEventListener('blur', ()=>{
-      const newName=projInput.value.trim(); if (newName===projectName) return;
-      mondays.forEach(mon=>{ const k=keyFor(who, mon); const obj=JSON.parse(localStorage.getItem(k)||'{"rows":[]}'); const row=(obj.rows||[]).find(r=>(r.project||'')===projectName); if(row){ row.project=newName; localStorage.setItem(k, JSON.stringify(obj)); } });
-      render();
-    });
-    tdProj.appendChild(projInput); tr.appendChild(tdProj);
-    let monthlyEst=0, monthlyTrk=0;
-    mondays.forEach((mon)=>{
-      const key=keyFor(who, mon);
-      const obj=JSON.parse(localStorage.getItem(key)||'{"rows":[]}');
-      let row=(obj.rows||[]).find(r=>(r.project||'')===projectName);
-      if(!row){ row={project:projectName, cells:{}}; obj.rows.push(row); localStorage.setItem(key, JSON.stringify(obj)); }
-      const td=document.createElement('td'); const wrap=document.createElement('div'); wrap.style.display='grid'; wrap.style.gap='6px';
-      const head=document.createElement('div'); head.className='tiny'; head.textContent=labelWeekRange(new Date(mon));
-      wrap.appendChild(head);
-      let wkEst=0, wkTrk=0;
-      const grid=document.createElement('div'); grid.style.display='grid'; grid.style.gridTemplateColumns='repeat(5,1fr)'; grid.style.gap='6px';
-      for(let d=0; d<5; d++){
-        const c=row.cells[d] || {est:'',tracked:'',estLocked:false, trackedMeta:null}; row.cells[d]=c;
-        const cell=document.createElement('div'); cell.className='cellBox';
-        const est=document.createElement('input'); est.type='number'; est.step='0.25'; est.min='0'; est.placeholder='Est'; est.className='num'; est.value=c.est??'';
-        if (c.est !== '' && c.estLocked){ est.disabled=true; est.classList.add('locked'); est.title='Estimate locked'; }
-        est.addEventListener('change', e=>{
-          const val=e.target.value===''? '' : Math.max(0, Number(e.target.value));
-          c.est=val; if (val!==''){ c.estLocked=true; est.disabled=true; est.classList.add('locked'); est.title='Estimate locked'; }
-          localStorage.setItem(key, JSON.stringify(obj)); updateAllSummaries();
-        });
-        const tracked=document.createElement('input'); tracked.type='number'; tracked.step='0.25'; tracked.min='0'; tracked.placeholder='Tracked'; tracked.className='num'; tracked.value=c.tracked??'';
-        tracked.readOnly=true;
-        tracked.addEventListener('click', ()=> openTimeModal({wkMon:new Date(mon), row, dayIdx:d, c}));
-        wkEst += Number(c.est||0); wkTrk += Number(c.tracked||0);
-        cell.append(est, tracked);
-        grid.appendChild(cell);
-      }
-      wrap.appendChild(grid);
-      if (Object.values(row.cells).some(cc=>cc?.trackedMeta?.type)){
-        const tag=document.createElement('div'); tag.className='tiny'; tag.textContent='Has categorized entries';
-        wrap.appendChild(tag);
-      }
-      td.appendChild(wrap); tr.appendChild(td);
-      monthlyEst += wkEst; monthlyTrk += wkTrk;
-      localStorage.setItem(key, JSON.stringify(obj));
-    });
-    const tdTotal=document.createElement('td'); const tot=document.createElement('div'); tot.className='cellBox';
-    const estTot=document.createElement('input'); estTot.className='num locked'; estTot.disabled=true; estTot.value=fmt(monthlyEst);
-    const trkTot=document.createElement('input'); trkTot.className='num'; trkTot.disabled=true; trkTot.value=fmt(monthlyTrk);
-    tot.append(estTot, trkTot); tdTotal.appendChild(tot); tr.appendChild(tdTotal);
+
+  tasks.forEach(task => {
+    const tr = document.createElement('tr');
+    tr.dataset.taskId = task.id; // Store ClickUp task ID
+
+    // Create the project cell (not editable)
+    const tdProj = document.createElement('td');
+    tdProj.className = 'proj-cell';
+    tdProj.textContent = task.name;
+    tr.appendChild(tdProj);
+
+    // Create the 5 daily input cells
+    for(let d = 0; d < 5; d++){
+      const td = document.createElement('td');
+      const box = document.createElement('div');
+      box.className = 'cellBox';
+
+      const est = document.createElement('input');
+      est.type = 'number';
+      est.step = '0.25';
+      est.min = '0';
+      est.placeholder = 'Est';
+      est.className = 'num est-input';
+      
+      const tracked = document.createElement('input');
+      tracked.type = 'number';
+      tracked.step = '0.25';
+      tracked.min = '0';
+      tracked.placeholder = 'Tracked';
+      tracked.className = 'num tracked-input';
+
+      box.append(est, tracked);
+      td.appendChild(box);
+      tr.appendChild(td);
+    }
+    
+    // Create the total cell
+    const tdTotal = document.createElement('td');
+    const tot = document.createElement('div');
+    tot.className = 'cellBox';
+    const estTot = document.createElement('input');
+    estTot.className = 'num';
+    estTot.disabled = true;
+    estTot.value = '0.00';
+    const trkTot = document.createElement('input');
+    trkTot.className = 'num';
+    trkTot.disabled = true;
+    trkTot.value = '0.00';
+    tot.append(estTot, trkTot);
+    tdTotal.appendChild(tot);
+    tr.appendChild(tdTotal);
+    
     tbody.appendChild(tr);
   });
-  const trf=document.createElement('tr'); const tdLabel=document.createElement('td'); tdLabel.textContent='All Projects Total'; tdLabel.className='proj-cell'; trf.appendChild(tdLabel);
-  let grandEst=0, grandTrk=0;
-  mondays.forEach(mon=>{
-    const obj=JSON.parse(localStorage.getItem(keyFor(who, mon))||'{"rows":[]}'); let we=0, wt=0;
-    (obj.rows||[]).forEach(row=>{ for(let d=0; d<5; d++){ const c=row.cells?.[d]; if(!c) continue; we+=Number(c.est||0); wt+=Number(c.tracked||0);} });
-    grandEst+=we; grandTrk+=wt;
-    const td=document.createElement('td'); const box=document.createElement('div'); box.className='cellBox';
-    const est=document.createElement('input'); est.className='num locked'; est.disabled=true; est.value=fmt(we);
-    const trk=document.createElement('input'); trk.className='num'; trk.disabled=true; trk.value=fmt(wt);
-    box.append(est, trk); td.appendChild(box); trf.appendChild(td);
-  });
-  const tdGrand=document.createElement('td'); const boxG=document.createElement('div'); boxG.className='cellBox';
-  const estG=document.createElement('input'); estG.className='num locked'; estG.disabled=true; estG.value=fmt(grandEst);
-  const trkG=document.createElement('input'); trkG.className='num'; trkG.disabled=true; trkG.value=fmt(grandTrk);
-  boxG.append(estG, trkG); tdGrand.appendChild(boxG); trf.appendChild(tdGrand);
-  $('#tfoot').appendChild(trf);
+  
+  // We'll add footer and summary updates in the next step
+  updateAllSummaries();
 }
-function computeTotalsWeek(){ /* ... your original code ... */ 
-  let est=0,trk=0; const dailyEst=[0,0,0,0,0], dailyTrk=[0,0,0,0,0];
-  (data.rows||[]).forEach(row=>{ for(let d=0; d<5; d++){ const c=row.cells?.[d]; if(!c) continue; const e=Number(c.est||0), t=Number(c.tracked||0); est+=e; trk+=t; dailyEst[d]+=e; dailyTrk[d]+=t; }});
-  return {est, trk, delta: trk-est, dailyEst, dailyTrk};
-}
-function computeTotalsMonth(){ /* ... your original code ... */ 
-  const who=getActiveIdentity(); const y=weekStart.getFullYear(), m=weekStart.getMonth(); const mondays=weeksInMonth(y,m);
-  let est=0,trk=0; const weeklyEst=[], weeklyTrk=[], labels=[];
-  mondays.forEach((mon,idx)=>{ const obj=JSON.parse(localStorage.getItem(keyFor(who, mon))||'{"rows":[]}'); let we=0,wt=0;
-    (obj.rows||[]).forEach(row=>{ for(let d=0; d<5; d++){ const c=row.cells?.[d]; if(!c) continue; we+=Number(c.est||0); wt+=Number(c.tracked||0);} });
-    est+=we; trk+=wt; weeklyEst.push(we); weeklyTrk.push(wt); labels.push(`W${idx+1}`); });
-  return {est, trk, delta: trk-est, weeklyEst, weeklyTrk, labels};
-}
-function updateAllSummaries(){ /* ... your original code ... */ 
-  if (viewMode==='week'){
-    const t=computeTotalsWeek(); $('#sumEst').textContent=`Est: ${fmt(t.est)}h`; $('#sumTracked').textContent=`Tracked: ${fmt(t.trk)}h`; $('#sumDelta').textContent=`Δ (Tracked–Est): ${fmt(t.delta)}h`;
-  } else {
-    const t=computeTotalsMonth(); $('#sumEst').textContent=`Est: ${fmt(t.est)}h`; $('#sumTracked').textContent=`Tracked: ${fmt(t.trk)}h`; $('#sumDelta').textContent=`Δ (Tracked–Est): ${fmt(t.delta)}h`;
-  }
-}
-function openTimeModal(ctx){ /* ... your original code ... */ 
-  modalCtx = ctx;
-  const proj = ctx.row.project || '(Untitled Project)';
-  const theDay = ['Mon','Tue','Wed','Thu','Fri'][ctx.dayIdx];
-  $('#modalContext').textContent = `${proj} • ${theDay} • ${niceDate(addDays(ctx.wkMon, ctx.dayIdx))}`;
-  const meta = ctx.c.trackedMeta || {};
-  $('#timeType').value = meta.type || '';
-  $('#subType').value  = meta.subType || '';
-  $('#modalHours').value = ctx.c.tracked ?? '';
-  toggleSubType();
-  $('#modalBackdrop').style.display='flex';
-  setTimeout(()=>$('#modalHours').focus(), 10);
-}
-function closeTimeModal(){ $('#modalBackdrop').style.display='none'; modalCtx=null; }
-function toggleSubType(){ /* ... your original code ... */ 
-  const v = ($('#timeType').value||'').trim();
-  const show = v.toLowerCase() === 'non billable | internal projects' || v === 'Non BIllable | Internal Projects';
-  $('#subTypeRow').style.display = show ? 'block' : 'none';
-  if (!show) $('#subType').value = '';
-}
-$('#timeType').addEventListener('change', toggleSubType);
-$('#modalCancel').addEventListener('click', closeTimeModal);
-$('#modalBackdrop').addEventListener('click', (e)=>{ if (e.target.id==='modalBackdrop') closeTimeModal(); });
-document.addEventListener('keydown', (e)=>{ if (e.key==='Escape' && $('#modalBackdrop').style.display==='flex') closeTimeModal(); });
-$('#modalSave').addEventListener('click', ()=>{ /* ... your original code ... */ 
-  if (!modalCtx) return;
-  const hours = $('#modalHours').value === '' ? '' : Math.max(0, Number($('#modalHours').value));
-  const type = $('#timeType').value || '';
-  const subType = $('#subType').value || '';
-  const who = getActiveIdentity();
-  const key = keyFor(who, startOfWeek(modalCtx.wkMon));
-  const obj = JSON.parse(localStorage.getItem(key) || '{"rows":[]}');
-  let row = obj.rows.find(r => r === modalCtx.row) || obj.rows.find(r => (r.project||'') === (modalCtx.row.project||''));
-  if (!row){ row = {project: modalCtx.row.project||'', cells:{}}; obj.rows.push(row); }
-  const d = modalCtx.dayIdx;
-  const cell = row.cells[d] || {est:'', tracked:'', estLocked:false, trackedMeta:null};
-  cell.tracked = hours;
-  cell.trackedMeta = { type, subType };
-  row.cells[d] = cell;
-  localStorage.setItem(key, JSON.stringify(obj));
-  if (ymd(startOfWeek(modalCtx.wkMon)) === ymd(weekStart)){
-    modalCtx.c.tracked = hours;
-    modalCtx.c.trackedMeta = { type, subType };
-    saveSilent();
-    render();
-  } else {
-    updateAllSummaries();
-  }
-  closeTimeModal();
-});
-function buildFooterTotalsWeek(){ /* ... your original code ... */ 
-  const tfoot=$('#tfoot'); tfoot.innerHTML='';
-  const { dailyEst, dailyTrk } = computeTotalsWeek();
-  const grandEst=dailyEst.reduce((a,b)=>a+b,0), grandTrk=dailyTrk.reduce((a,b)=>a+b,0);
-  const tr=document.createElement('tr');
-  const tdLabel=document.createElement('td'); tdLabel.textContent='All Projects Total'; tdLabel.className='proj-cell'; tr.appendChild(tdLabel);
-  for(let d=0; d<5; d++){
-    const td=document.createElement('td'); const box=document.createElement('div'); box.className='cellBox';
-    const est=document.createElement('input'); est.className='num locked'; est.disabled=true; est.value=fmt(dailyEst[d]);
-    const trk=document.createElement('input'); trk.className='num'; trk.disabled=true; trk.value=fmt(dailyTrk[d]);
-    box.append(est, trk); td.appendChild(box); tr.appendChild(td);
-  }
-  const tdGrand=document.createElement('td'); const boxG=document.createElement('div'); boxG.className='cellBox';
-  const estG=document.createElement('input'); estG.className='num locked'; estG.disabled=true; estG.value=fmt(grandEst);
-  const trkG=document.createElement('input'); trkG.className='num'; trkG.disabled=true; trkG.value=fmt(grandTrk);
-  boxG.append(estG, trkG); tdGrand.appendChild(boxG); tr.appendChild(tdGrand);
-  tfoot.appendChild(tr);
-}
-function addRow(){ data.rows.push({ project:'', cells:{} }); render(); }
 
-/** ========== Events (Your Original Code, partially connected) ========== **/
-// REMOVED: Old login button event listener
-$('#logout').addEventListener('click', ()=>{ 
-    localStorage.removeItem('clickup_access_token');
-    user=null;
-    adminViewUser=null;
-    showLogin();
-});
-$('#addRow').addEventListener('click', ()=>{
-  if (viewMode==='week'){ data.rows.push({ project:'', cells:{} }); render(); }
-  else{
-    const who=getActiveIdentity(); const obj=JSON.parse(localStorage.getItem(keyFor(who, weekStart))||'{"rows":[]}');
-    obj.rows.push({ project:'', cells:{} }); localStorage.setItem(keyFor(who, weekStart), JSON.stringify(obj)); render();
-  }
-});
-$('#saveAll').addEventListener('click', save);
-$('#exportCsv').addEventListener('click', ()=>{ /* ... your original code ... */ });
-$('#prevWeek').addEventListener('click', ()=>{ weekStart=addDays(weekStart,-7); buildHead(); load(); });
-$('#nextWeek').addEventListener('click', ()=>{ weekStart=addDays(weekStart, +7); buildHead(); load(); });
-$('#thisWeek').addEventListener('click', ()=>{ weekStart=startOfWeek(new Date()); buildHead(); load(); });
-$('#unlockAll').addEventListener('click', ()=>{ /* ... your original code ... */ });
-$('#viewWeek').addEventListener('click', ()=>{ if (viewMode!=='week'){ viewMode='week'; setViewButtons(); buildHead(); load(); } });
-$('#viewMonth').addEventListener('click', ()=>{ if (viewMode!=='month'){ viewMode='month'; setViewButtons(); buildHead(); render(); } });
-function toCSV(){ /* ... your original code ... */ }
+function updateAllSummaries() {
+    // This function will be expanded in the next step to calculate totals
+    console.log("Updating summaries...");
+}
+
+
+// All other functions from your original file will be re-integrated
+// in the next steps as we add back their functionality (modals, saving, etc.)
 
 /** Boot */
-initAuth(); // Start the new ClickUp auth flow instead of the old boot logic
+initAuth(); // Start the new ClickUp auth flow
 
 </script>
 </body>
