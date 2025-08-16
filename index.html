@@ -1,116 +1,64 @@
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ClickUp Time Tracker</title>
+    <title>ClickUp Time Tracker - DEBUG MODE</title>
     <style>
-        body { font-family: system-ui, sans-serif; display: grid; place-content: center; height: 100vh; background: #1a1a1a; margin: 0; color: white; text-align: center; }
-        .login-btn { font-size: 18px; background: #7b68ee; color: white; padding: 14px 24px; border-radius: 8px; border: none; cursor: pointer; text-decoration: none; display: inline-block; }
+        body { font-family: system-ui, sans-serif; background: #1a1a1a; margin: 20px; color: white; }
         .hidden { display: none; }
-        #appView p { max-width: 400px; margin: 10px auto; }
-        #taskList { list-style: none; padding: 0; max-width: 500px; margin: 20px auto; }
-        #taskList li { background: #2a2a2a; padding: 12px; border-radius: 6px; margin-bottom: 8px; }
+        pre { background: #2a2a2a; padding: 15px; border-radius: 8px; white-space: pre-wrap; word-wrap: break-word; }
     </style>
 </head>
 <body>
-    <div id="loginView">
-        <a href="#" id="loginButton" class="login-btn">Login with ClickUp</a>
-    </div>
-
     <div id="appView" class="hidden">
-        <h1 id="welcomeMessage">Login Successful!</h1>
-        <p id="statusText">We have your access token.</p>
-        <ul id="taskList"></ul>
+        <h1>Debugging User Data</h1>
+        <p>Please copy the text block below and send it back. Censor any private info like emails or full names.</p>
+        <pre id="debugOutput"></pre>
     </div>
 
     <script>
         // --- CONFIGURATION ---
-        const CLIENT_ID = '6JL5V3OXV2EZ426G9WH3G2SHSD1YZ43B';
-        const REDIRECT_URI = 'https://l5-time-tracker.vercel.app'; // Use your correct Vercel URL
+        // PASTE YOUR CLIENT_ID and VERCEL URL BELOW
+         const CLIENT_ID = '6JL5V3OXV2EZ426G9WH3G2SHSD1YZ43B';
+        const REDIRECT_URI = 'https://l5-time-tracker.vercel.app'; 
 
         // --- DOM ELEMENTS ---
-        const loginView = document.getElementById('loginView');
         const appView = document.getElementById('appView');
-        const loginButton = document.getElementById('loginButton');
-        const welcomeMessage = document.getElementById('welcomeMessage');
-        const statusText = document.getElementById('statusText');
-        const taskList = document.getElementById('taskList');
+        const debugOutput = document.getElementById('debugOutput');
 
-        // --- AUTHENTICATION & API LOGIC ---
+        // --- AUTH LOGIC (Simplified for debug) ---
 
         window.onload = function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const authCode = urlParams.get('code');
             const accessToken = localStorage.getItem('clickup_access_token');
-
             if (accessToken) {
-                loginView.classList.add('hidden');
                 appView.classList.remove('hidden');
-                fetchData(accessToken);
-            } else if (authCode) {
-                loginView.classList.add('hidden');
-                appView.classList.remove('hidden');
-                getAccessToken(authCode);
+                fetchDataForDebug(accessToken);
+            } else {
+                // If no token, redirect to login (assuming user must have logged in once)
+                 const urlParams = new URLSearchParams(window.location.search);
+                 if (!urlParams.has('code')) {
+                    window.location.href = `https://app.clickup.com/api?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
+                 }
             }
         };
-
-        loginButton.onclick = function() {
-            const authUrl = `https://app.clickup.com/api?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
-            window.location.href = authUrl;
-        };
-
-        async function getAccessToken(code) {
+        
+        async function fetchDataForDebug(token) {
             try {
-                statusText.textContent = 'Authenticating...';
-                const response = await fetch('/api/get_token', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code: code }),
-                });
-
-                if (!response.ok) throw new Error('Failed to get access token');
-                
-                const data = await response.json();
-                localStorage.setItem('clickup_access_token', data.accessToken);
-                window.history.replaceState({}, document.title, window.location.pathname);
-                fetchData(data.accessToken);
-
-            } catch (error) {
-                console.error('Error:', error);
-                statusText.textContent = `Error: Could not get access token.`;
-            }
-        }
-
-        async function fetchData(token) {
-            try {
-                statusText.textContent = 'Fetching your data...';
-                
-                // Call our NEW secure helper function, passing the token in the header
                 const response = await fetch('/api/get_data', {
                     headers: { 'Authorization': token }
                 });
-
-                if (!response.ok) {
-                    const errorInfo = await response.json();
-                    throw new Error(errorInfo.error || 'Failed to fetch data from our server');
-                }
-
+                if (!response.ok) throw new Error('Failed to fetch debug data');
+                
                 const data = await response.json();
                 
-                welcomeMessage.textContent = `Welcome, ${data.username}!`;
-                statusText.textContent = `Found ${data.tasks.length} assigned tasks in ${data.teamName}.`;
-
-                taskList.innerHTML = '';
-                data.tasks.forEach(task => {
-                    const listItem = document.createElement('li');
-                    listItem.textContent = task.name;
-                    taskList.appendChild(listItem);
-                });
+                // Display the raw JSON data in a nicely formatted way
+                debugOutput.textContent = JSON.stringify(data, null, 2);
 
             } catch (error) {
-                console.error('Error fetching data:', error);
-                statusText.textContent = `Error: ${error.message}`;
+                debugOutput.textContent = `Error: ${error.message}`;
             }
         }
     </script>

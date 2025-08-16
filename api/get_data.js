@@ -1,46 +1,25 @@
-// This is our new secure helper for fetching data from ClickUp.
-// It runs on the server and is not blocked by browser security (CORS).
+// DEBUGGING VERSION
+// This function will fetch the user profile and send the raw data
+// directly to the front-end so we can see its structure.
 
 export default async function handler(request, response) {
   try {
-    // Get the access token that the front-end sent in the header
     const token = request.headers.authorization;
 
-    // 1. Get User Info from ClickUp
     const userResponse = await fetch('https://api.clickup.com/api/v2/user', {
       headers: { 'Authorization': token }
     });
-    if (!userResponse.ok) throw new Error('Failed to fetch user from ClickUp');
-    const userData = await userResponse.json();
-    const user = userData.user;
 
-    // --- ADDED SAFETY CHECK ---
-    // Before proceeding, we must check if the user is part of any team/workspace.
-    if (!user.teams || user.teams.length === 0) {
-      // If not, stop and send a clear error message.
-      return response.status(400).json({ error: 'Your ClickUp account does not belong to any workspace.' });
+    if (!userResponse.ok) {
+      throw new Error('Failed to fetch user from ClickUp for debugging');
     }
-    // --- END SAFETY CHECK ---
-
-    // Now it's safe to grab the first team in the list.
-    const team = user.teams[0];
-
-    // 2. Get Assigned Tasks from ClickUp
-    const tasksResponse = await fetch(`https://api.clickup.com/api/v2/team/${team.id}/task?assignees[]=${user.id}`, {
-      headers: { 'Authorization': token }
-    });
-    if (!tasksResponse.ok) throw new Error('Failed to fetch tasks from ClickUp');
-    const tasksData = await tasksResponse.json();
-
-    // 3. Send the user info and tasks back to our front-end
-    response.status(200).json({
-      username: user.username,
-      teamName: team.name,
-      tasks: tasksData.tasks
-    });
+    
+    // Get the raw data and send it straight back to the browser
+    const rawUserData = await userResponse.json();
+    response.status(200).json(rawUserData);
 
   } catch (error) {
-    console.error('SERVER-SIDE ERROR:', error);
+    console.error('SERVER-SIDE DEBUG ERROR:', error);
     response.status(500).json({ error: error.message });
   }
 }
