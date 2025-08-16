@@ -1,4 +1,4 @@
-// This is a special diagnostic function to find all Spaces and List IDs.
+// This is a special diagnostic function to find all Spaces and View IDs.
 export default async function handler(request, response) {
   try {
     const token = request.headers.authorization;
@@ -22,24 +22,23 @@ export default async function handler(request, response) {
     const spacesData = await spacesResponse.json();
     const spaces = spacesData.spaces;
 
-    // 3. For each Space, get all its Views (including Lists)
-    const allLists = [];
+    // 3. For each Space, get ALL its Views
+    const allViews = [];
     for (const space of spaces) {
       const viewsResponse = await fetch(`https://api.clickup.com/api/v2/space/${space.id}/view`, {
         headers: { 'Authorization': token }
       });
       if (viewsResponse.ok) {
         const viewsData = await viewsResponse.json();
-        const listsInSpace = viewsData.views.filter(view => view.type === 'list');
-        allLists.push({
+        allViews.push({
           spaceName: space.name,
           spaceId: space.id,
-          lists: listsInSpace.map(l => ({ listName: l.name, listId: l.id }))
+          views: viewsData.views.map(v => ({ viewName: v.name, viewId: v.id, viewType: v.type }))
         });
       }
     }
     
-    response.status(200).json({ structure: allLists });
+    response.status(200).json({ structure: allViews });
 
   } catch (error) {
     console.error('SERVER-SIDE FIND_IDS ERROR:', error);
