@@ -13,7 +13,17 @@ export default async function handler(request, response) {
     if (!userResponse.ok) throw new Error('Failed to fetch user from ClickUp');
     const userData = await userResponse.json();
     const user = userData.user;
-    const team = user.teams[0]; // User's primary team/workspace
+
+    // --- ADDED SAFETY CHECK ---
+    // Before proceeding, we must check if the user is part of any team/workspace.
+    if (!user.teams || user.teams.length === 0) {
+      // If not, stop and send a clear error message.
+      return response.status(400).json({ error: 'Your ClickUp account does not belong to any workspace.' });
+    }
+    // --- END SAFETY CHECK ---
+
+    // Now it's safe to grab the first team in the list.
+    const team = user.teams[0];
 
     // 2. Get Assigned Tasks from ClickUp
     const tasksResponse = await fetch(`https://api.clickup.com/api/v2/team/${team.id}/task?assignees[]=${user.id}`, {
