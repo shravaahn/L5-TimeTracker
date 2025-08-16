@@ -20,10 +20,8 @@
     .brand{display:flex; gap:10px; align-items:center}
     .logo{ width:34px; height:34px; display:grid; place-items:center; border-radius:10px; background:var(--accent); color:white; font-weight:800; }
     .wrap{padding:22px}
-    .controls{display:flex; align-items:center; gap:10px;}
     button, select{ appearance:none; border:1px solid var(--border); background:#11141a; color:var(--text); padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600; }
     button.success{background:var(--accent-2); border-color:transparent; color:#062f13;}
-    button.warn{background:var(--warn); border-color:transparent; color:#1b1404;}
     button:disabled{opacity:.6; cursor:not-allowed}
     input{ width:100%; background:var(--input); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px 12px; outline:none; }
     .grid{ overflow:auto; border:1px solid var(--border); border-radius:12px; margin-top:14px; }
@@ -59,7 +57,6 @@
     </div>
     <div class="controls">
       <span id="welcomeMessage" class="tiny"></span>
-      <button id="logoutButton" class="warn">Log Out</button>
       <button id="saveAll" class="success">Save</button>
     </div>
   </header>
@@ -90,14 +87,17 @@
     const REDIRECT_URI = 'https://l5-time-tracker.vercel.app'; // Your Vercel URL
 
     // --- GLOBAL STATE ---
-    let appData = { userId: null, teamId: null, accessToken: null, allTasks: [] };
+    let appData = {
+        userId: null,
+        teamId: null,
+        accessToken: null
+    };
     const weekDays = getWeekInfo();
 
     // --- DOM ELEMENTS ---
     const loginView = document.getElementById('loginView');
     const appView = document.getElementById('appView');
     const loginButton = document.getElementById('loginButton');
-    const logoutButton = document.getElementById('logoutButton');
     const welcomeMessage = document.getElementById('welcomeMessage');
     const weekLabel = document.getElementById('weekLabel');
     const timesheetBody = document.getElementById('tbody');
@@ -129,6 +129,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const authCode = urlParams.get('code');
         appData.accessToken = localStorage.getItem('clickup_access_token');
+
         if (appData.accessToken) {
             loginView.classList.add('hidden');
             appView.classList.remove('hidden');
@@ -145,14 +146,10 @@
         window.location.href = authUrl;
     };
 
-    logoutButton.onclick = function() {
-        localStorage.removeItem('clickup_access_token');
-        window.location.href = REDIRECT_URI;
-    };
-
     saveButton.onclick = async function() {
         saveButton.textContent = 'Saving...';
         saveButton.disabled = true;
+
         const timeEntries = [];
         const rows = timesheetBody.querySelectorAll('tr[data-task-id]');
         rows.forEach(row => {
@@ -161,21 +158,36 @@
             inputs.forEach((input, index) => {
                 const hours = parseFloat(input.value);
                 if (hours > 0) {
-                    timeEntries.push({ taskId: taskId, date: weekDays[index].toISOString(), hours: hours, userId: appData.userId });
+                    timeEntries.push({
+                        taskId: taskId,
+                        date: weekDays[index].toISOString(),
+                        hours: hours,
+                        userId: appData.userId
+                    });
                 }
             });
         });
+
         try {
             const response = await fetch('/api/save_time', {
                 method: 'POST',
-                headers: { 'Authorization': appData.accessToken, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ timeEntries: timeEntries, teamId: appData.teamId })
+                headers: {
+                    'Authorization': appData.accessToken,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    timeEntries: timeEntries,
+                    teamId: appData.teamId
+                })
             });
+
             if (!response.ok) {
                 const errorInfo = await response.json();
                 throw new Error(errorInfo.error || 'Failed to save time entries.');
             }
+            
             saveButton.textContent = 'Saved! ✅';
+
         } catch (error) {
             console.error('Save Error:', error);
             saveButton.textContent = 'Save Failed ❌';
@@ -196,6 +208,7 @@
                 body: JSON.stringify({ code: code }),
             });
             if (!response.ok) throw new Error('Failed to get access token');
+            
             const data = await response.json();
             appData.accessToken = data.accessToken;
             localStorage.setItem('clickup_access_token', appData.accessToken);
@@ -214,16 +227,16 @@
                 throw new Error(errorInfo.error || 'Failed to fetch data');
             }
             const data = await response.json();
-
+            
             appData.userId = data.userId;
             appData.teamId = data.teamId;
-            appData.allTasks = data.tasks; // Store all tasks for admin filtering
 
             welcomeMessage.textContent = `Welcome, ${data.username}!`;
-            renderTimesheet(data.tasks); // Render logged-in user's tasks by default
+            renderTimesheet(data.tasks);
 
+            // --- ADMIN LOGIC ---
             // ClickUp roles: 1=owner, 2=admin, 3=member, 4=guest
-            if (data.role <= 2) { 
+            if (data.role <= 2) { // Is user an owner or admin?
                 adminPickerRow.classList.remove('hidden');
                 fetchAndPopulateUsers(token, data.teamId, data.userId);
             }
@@ -241,18 +254,18 @@
         try {
             const response = await fetch('/api/get_users', {
                 method: 'POST',
-                headers: { 'Authorization': token, 'Content-Type': 'application/json' },
+                headers: {
+                    'Authorization': token,
+                    'Content-Type': 'application/json'
+                },
                 body: JSON.stringify({ teamId: teamId })
             });
             if (!response.ok) throw new Error('Could not fetch workspace users.');
+
             const members = await response.json();
-            consultantPicker.innerHTML = '';
+            consultantPicker.innerHTML = ''; // Clear dropdown
 
-            const optAll = document.createElement('option');
-            optAll.value = 'all';
-            optAll.textContent = 'All Users';
-            consultantPicker.appendChild(optAll);
-
+            // Add the logged-in user to the top of the list
             const currentUser = members.find(m => m.user.id === currentUserId);
             if (currentUser) {
                 const optMe = document.createElement('option');
@@ -261,18 +274,18 @@
                 consultantPicker.appendChild(optMe);
             }
 
+            // Add other users
             members.forEach(member => {
-                if (member.user.id !== currentUserId) {
+                if (member.user.id !== currentUserId) { // Don't add the current user twice
                     const opt = document.createElement('option');
                     opt.value = member.user.id;
                     opt.textContent = member.user.username;
                     consultantPicker.appendChild(opt);
                 }
             });
-            // Set the default view to the logged-in user
-            consultantPicker.value = currentUserId;
         } catch (error) {
             console.error("Admin Error:", error);
+            // Silently fail is okay here, the main app still works.
         }
     }
 
@@ -292,10 +305,9 @@
         buildHead();
         timesheetBody.innerHTML = ''; 
         if (tasks.length === 0) {
-            timesheetBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 40px;">No tasks assigned to the selected user.</td></tr>`;
+            timesheetBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 40px;">You have no tasks assigned to you.</td></tr>`;
             saveButton.disabled = true;
-        } else {
-            saveButton.disabled = false;
+            return;
         }
 
         tasks.forEach(task => {
@@ -309,15 +321,17 @@
             tr.innerHTML = rowHTML;
             timesheetBody.appendChild(tr);
         });
-
+        
         buildFooter();
         addInputListeners();
         updateTotals();
     }
-
+    
     function buildFooter() {
         let footerHTML = `<tr><td class="proj-cell">All Projects Total</td>`;
-        for (let i=0; i<6; i++) footerHTML += `<td><input class="num" disabled value="0.00"></td>`;
+        for (let i=0; i<6; i++) {
+            footerHTML += `<td><input class="num" disabled value="0.00"></td>`;
+        }
         timesheetFoot.innerHTML = footerHTML;
     }
 
@@ -325,32 +339,23 @@
         document.querySelectorAll('.tracked-input').forEach(input => {
             input.addEventListener('input', updateTotals);
         });
-        // Add listener for admin dropdown
-        consultantPicker.addEventListener('change', (event) => {
-            const selectedUserId = event.target.value;
-            if (selectedUserId === 'all') {
-                renderTimesheet(appData.allTasks);
-            } else {
-                const filteredTasks = appData.allTasks.filter(task => 
-                    task.assignees.some(assignee => assignee.id == selectedUserId)
-                );
-                renderTimesheet(filteredTasks);
-            }
-        });
     }
-
+    
     function updateTotals() {
-        const rows = timesheetBody.querySelectorAll('tr[data-task-id]');
+        const rows = timesheetBody.querySelectorAll('tr');
         const dailyTotals = [0, 0, 0, 0, 0];
+        
         rows.forEach(row => {
             let rowTotal = 0;
-            row.querySelectorAll('.tracked-input').forEach((input, index) => {
+            const inputs = row.querySelectorAll('.tracked-input');
+            inputs.forEach((input, index) => {
                 const val = parseFloat(input.value) || 0;
                 rowTotal += val;
                 dailyTotals[index] += val;
             });
             row.querySelector('td:last-child input').value = fmt(rowTotal);
         });
+        
         const footerCells = timesheetFoot.querySelectorAll('td');
         let grandTotal = 0;
         dailyTotals.forEach((total, index) => {
