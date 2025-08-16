@@ -1,23 +1,32 @@
-// This tool finds all Spaces and View IDs.
+// This is the final, robust version of the ID finder.
 export default async function handler(request, response) {
   try {
     const token = request.headers.authorization;
 
-    const userResponse = await fetch('https://api.clickup.com/api/v2/user', {
+    // 1. Get the authorized teams using the reliable endpoint.
+    const teamsResponse = await fetch('https://api.clickup.com/api/v2/team', {
       headers: { 'Authorization': token }
     });
-    if (!userResponse.ok) throw new Error('Could not get user.');
-    const userData = await userResponse.json();
-    const teamId = userData.user.teams[0].id;
+    if (!teamsResponse.ok) throw new Error('Could not get authorized teams.');
+    const teamsData = await teamsResponse.json();
 
+    // 2. Safety check: Ensure the teams list exists and is not empty.
+    if (!teamsData.teams || teamsData.teams.length === 0) {
+      throw new Error('Your user is not authorized for any workspace according to the API.');
+    }
+    const teamId = teamsData.teams[0].id; // Get the ID from the first team.
+
+    // 3. Get all Spaces in that Team
     const spacesResponse = await fetch(`https://api.clickup.com/api/v2/team/${teamId}/space`, {
       headers: { 'Authorization': token }
     });
     if (!spacesResponse.ok) throw new Error('Could not get spaces.');
     const spacesData = await spacesResponse.json();
+    const spaces = spacesData.spaces;
 
+    // 4. For each Space, get ALL its Views
     const allViews = [];
-    for (const space of spacesData.spaces) {
+    for (const space of spaces) {
       const viewsResponse = await fetch(`https://api.clickup.com/api/v2/space/${space.id}/view`, {
         headers: { 'Authorization': token }
       });
@@ -30,7 +39,7 @@ export default async function handler(request, response) {
         });
       }
     }
-
+    
     response.status(200).json({ structure: allViews });
 
   } catch (error) {
