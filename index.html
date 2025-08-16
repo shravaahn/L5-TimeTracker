@@ -1,58 +1,365 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ClickUp Final ID Test</title>
-    <style>
-        body { font-family: system-ui, sans-serif; background: #1a1a1a; margin: 20px; color: white; }
-        pre { background: #2a2a2a; padding: 15px; border-radius: 8px; white-space: pre-wrap; word-wrap: break-word; }
-        .success { border: 2px solid #22c55e; }
-        .error { border: 2px solid #ef4444; }
-    </style>
+  <meta charset="UTF-8" />
+  <title>L5 Time Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0f1115; --panel:#171a21; --muted:#8b94a7; --text:#e8ecf1;
+      --accent:#7b68ee; --accent-2:#22c55e; --warn:#f59e0b; --danger:#ef4444;
+      --border:#242a35; --input:#11141a;
+      --radius:12px;
+    }
+    *{box-sizing:border-box}
+    body{ margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial; color:var(--text); background:var(--bg); min-height:100vh; }
+    .center-view{ display:grid; place-content:center; min-height:100vh; padding:24px; }
+    .hidden{display:none}
+    .card{ width:min(1300px,100%); background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); box-shadow:0 10px 30px rgba(0,0,0,.35); overflow:hidden; }
+    header{ padding:18px 22px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); background:rgba(255,255,255,.02); }
+    .brand{display:flex; gap:10px; align-items:center}
+    .logo{ width:34px; height:34px; display:grid; place-items:center; border-radius:10px; background:var(--accent); color:white; font-weight:800; }
+    .wrap{padding:22px}
+    .controls{display:flex; align-items:center; gap:10px;}
+    button, select{ appearance:none; border:1px solid var(--border); background:#11141a; color:var(--text); padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600; }
+    button.success{background:var(--accent-2); border-color:transparent; color:#062f13;}
+    button.warn{background:var(--warn); border-color:transparent; color:#1b1404;}
+    button:disabled{opacity:.6; cursor:not-allowed}
+    input{ width:100%; background:var(--input); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px 12px; outline:none; }
+    .grid{ overflow:auto; border:1px solid var(--border); border-radius:12px; margin-top:14px; }
+    table{border-collapse:separate; border-spacing:0; width:100%;}
+    thead th{ position:sticky; top:0; z-index:2; background:#12151c; color:#c8d2e3; border-bottom:1px solid var(--border); text-align:left; font-weight:600; padding:12px; white-space:nowrap; }
+    th, td{border-bottom:1px solid var(--border); padding:10px; vertical-align:middle; white-space:nowrap}
+    tbody tr:nth-child(even){background:rgba(255,255,255,.02)}
+    tfoot td{background:#10131a; color:#d7dfef; font-weight:600}
+    .proj-cell{min-width:300px; position:sticky; left:0; background:inherit; z-index:1}
+    .num{text-align:right}
+    .tiny{font-size:12px; color:var(--muted)}
+    .pill{ font-size:12px; padding:4px 8px; border:1px solid var(--border); border-radius:999px; color:#cbd5e1; background:#0f131a; }
+    .cellBox{display:grid; grid-template-columns:1fr; gap:6px}
+    .login-btn { font-size: 18px; background: var(--accent); color: white; padding: 14px 24px; border-radius: 8px; border: none; cursor: pointer; text-decoration: none; display: inline-block; }
+    .pickerRow{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px}
+    .pickerRow .label{font-size:12px; color:var(--muted)}
+  </style>
 </head>
 <body>
-    <h1>Final ID Test</h1>
-    <p>The result of trying to fetch tasks with View ID <strong>k6hww-66631</strong> is below.</p>
-    <pre id="output">Loading...</pre>
 
-    <script>
-        const CLIENT_ID = '6JL5V3OXV2EZ426G9WH3G2SHSD1YZ43B';
-        const REDIRECT_URI = 'https://l5-time-tracker.vercel.app'; // Your Vercel URL
+<div id="loginView" class="center-view">
+    <a href="#" id="loginButton" class="login-btn">Login with ClickUp</a>
+</div>
 
-        window.onload = function() {
-            const accessToken = localStorage.getItem('clickup_access_token');
-            if (accessToken) {
-                runTest(accessToken);
-            } else {
-                 const urlParams = new URLSearchParams(window.location.search);
-                 if (!urlParams.has('code')) {
-                    window.location.href = `https://app.clickup.com/api?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
-                 }
-            }
-        };
-        
-        async function runTest(token) {
-            const output = document.getElementById('output');
-            try {
-                const response = await fetch('/api/test_view', {
-                    headers: { 'Authorization': token }
-                });
-                const data = await response.json();
+<div id="appView" class="card hidden">
+  <header>
+    <div class="brand">
+      <div class="logo">L5</div>
+      <div>
+        <div style="font-weight:800">Time Tracking</div>
+        <div class="muted" id="weekLabel"></div>
+      </div>
+    </div>
+    <div class="controls">
+      <span id="welcomeMessage" class="tiny"></span>
+      <button id="logoutButton" class="warn">Log Out</button>
+      <button id="saveAll" class="success">Save</button>
+    </div>
+  </header>
 
-                if (!response.ok) {
-                    output.classList.add('error');
-                    throw new Error(JSON.stringify(data, null, 2));
-                }
+  <div class="wrap">
+    <div id="adminPickerRow" class="pickerRow hidden">
+        <span class="label">VIEWING AS ADMIN:</span>
+        <select id="consultantPicker" style="min-width:220px"></select>
+    </div>
 
-                output.classList.add('success');
-                output.textContent = "SUCCESS! It worked. The tasks are:\n\n" + JSON.stringify(data, null, 2);
+    <div class="sumbar">
+      <span class="pill" id="sumTracked">Tracked: 0.00h</span>
+    </div>
 
-            } catch (error) {
-                output.classList.add('error');
-                output.textContent = "FAILED. The API returned an error:\n\n" + error.message;
-            }
+    <div class="grid">
+      <table id="timesheet">
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+        <tfoot id="tfoot"></tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+    // --- CONFIGURATION ---
+    const CLIENT_ID = '6JL5V3OXV2EZ426G9WH3G2SHSD1YZ43B';
+    const REDIRECT_URI = 'https://l5-time-tracker.vercel.app'; // Your Vercel URL
+
+    // --- GLOBAL STATE ---
+    let appData = { userId: null, teamId: null, accessToken: null, allTasks: [] };
+    const weekDays = getWeekInfo();
+
+    // --- DOM ELEMENTS ---
+    const loginView = document.getElementById('loginView');
+    const appView = document.getElementById('appView');
+    const loginButton = document.getElementById('loginButton');
+    const logoutButton = document.getElementById('logoutButton');
+    const welcomeMessage = document.getElementById('welcomeMessage');
+    const weekLabel = document.getElementById('weekLabel');
+    const timesheetBody = document.getElementById('tbody');
+    const timesheetHead = document.getElementById('thead');
+    const timesheetFoot = document.getElementById('tfoot');
+    const saveButton = document.getElementById('saveAll');
+    const adminPickerRow = document.getElementById('adminPickerRow');
+    const consultantPicker = document.getElementById('consultantPicker');
+
+    // --- UTILITIES ---
+    const fmt = n => (isNaN(n) ? '0.00' : Number(n).toFixed(2));
+    function getWeekInfo() {
+        const today = new Date();
+        const dayOfWeek = (today.getDay() + 6) % 7;
+        const monday = new Date(today);
+        monday.setDate(today.getDate() - dayOfWeek);
+        monday.setHours(0, 0, 0, 0);
+        const days = [];
+        for (let i = 0; i < 5; i++) {
+            const day = new Date(monday);
+            day.setDate(monday.getDate() + i);
+            days.push(day);
         }
-    </script>
+        return days;
+    }
+
+    // --- INITIALIZATION & AUTH ---
+    window.onload = function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const authCode = urlParams.get('code');
+        appData.accessToken = localStorage.getItem('clickup_access_token');
+        if (appData.accessToken) {
+            loginView.classList.add('hidden');
+            appView.classList.remove('hidden');
+            fetchData(appData.accessToken);
+        } else if (authCode) {
+            loginView.classList.add('hidden');
+            appView.classList.remove('hidden');
+            getAccessToken(authCode);
+        }
+    };
+
+    loginButton.onclick = function() {
+        const authUrl = `https://app.clickup.com/api?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
+        window.location.href = authUrl;
+    };
+
+    logoutButton.onclick = function() {
+        localStorage.removeItem('clickup_access_token');
+        window.location.href = REDIRECT_URI;
+    };
+
+    saveButton.onclick = async function() {
+        saveButton.textContent = 'Saving...';
+        saveButton.disabled = true;
+        const timeEntries = [];
+        const rows = timesheetBody.querySelectorAll('tr[data-task-id]');
+        rows.forEach(row => {
+            const taskId = row.dataset.taskId;
+            const inputs = row.querySelectorAll('.tracked-input');
+            inputs.forEach((input, index) => {
+                const hours = parseFloat(input.value);
+                if (hours > 0) {
+                    timeEntries.push({ taskId: taskId, date: weekDays[index].toISOString(), hours: hours, userId: appData.userId });
+                }
+            });
+        });
+        try {
+            const response = await fetch('/api/save_time', {
+                method: 'POST',
+                headers: { 'Authorization': appData.accessToken, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ timeEntries: timeEntries, teamId: appData.teamId })
+            });
+            if (!response.ok) {
+                const errorInfo = await response.json();
+                throw new Error(errorInfo.error || 'Failed to save time entries.');
+            }
+            saveButton.textContent = 'Saved! ✅';
+        } catch (error) {
+            console.error('Save Error:', error);
+            saveButton.textContent = 'Save Failed ❌';
+            alert(`Error saving time: ${error.message}`);
+        } finally {
+            setTimeout(() => {
+                saveButton.textContent = 'Save';
+                saveButton.disabled = false;
+            }, 2000);
+        }
+    };
+
+    async function getAccessToken(code) {
+        try {
+            const response = await fetch('/api/get_token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: code }),
+            });
+            if (!response.ok) throw new Error('Failed to get access token');
+            const data = await response.json();
+            appData.accessToken = data.accessToken;
+            localStorage.setItem('clickup_access_token', appData.accessToken);
+            window.history.replaceState({}, document.title, window.location.pathname);
+            fetchData(appData.accessToken);
+        } catch (error) {
+            document.body.innerHTML = `<h1>Error</h1><p>Could not authenticate. Please try logging in again.</p>`;
+        }
+    }
+
+    async function fetchData(token) {
+        try {
+            const response = await fetch('/api/get_data', { headers: { 'Authorization': token } });
+            if (!response.ok) {
+                const errorInfo = await response.json();
+                throw new Error(errorInfo.error || 'Failed to fetch data');
+            }
+            const data = await response.json();
+
+            appData.userId = data.userId;
+            appData.teamId = data.teamId;
+            appData.allTasks = data.tasks; // Store all tasks for admin filtering
+
+            welcomeMessage.textContent = `Welcome, ${data.username}!`;
+            renderTimesheet(data.tasks); // Render logged-in user's tasks by default
+
+            // ClickUp roles: 1=owner, 2=admin, 3=member, 4=guest
+            if (data.role <= 2) { 
+                adminPickerRow.classList.remove('hidden');
+                fetchAndPopulateUsers(token, data.teamId, data.userId);
+            }
+
+        } catch (error) {
+            if (error.message.includes('token')) {
+                localStorage.removeItem('clickup_access_token');
+                window.location.href = REDIRECT_URI;
+            }
+            document.body.innerHTML = `<h1>Error</h1><p>${error.message}</p>`;
+        }
+    }
+
+    async function fetchAndPopulateUsers(token, teamId, currentUserId) {
+        try {
+            const response = await fetch('/api/get_users', {
+                method: 'POST',
+                headers: { 'Authorization': token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ teamId: teamId })
+            });
+            if (!response.ok) throw new Error('Could not fetch workspace users.');
+            const members = await response.json();
+            consultantPicker.innerHTML = '';
+
+            const optAll = document.createElement('option');
+            optAll.value = 'all';
+            optAll.textContent = 'All Users';
+            consultantPicker.appendChild(optAll);
+
+            const currentUser = members.find(m => m.user.id === currentUserId);
+            if (currentUser) {
+                const optMe = document.createElement('option');
+                optMe.value = currentUser.user.id;
+                optMe.textContent = `${currentUser.user.username} (Me)`;
+                consultantPicker.appendChild(optMe);
+            }
+
+            members.forEach(member => {
+                if (member.user.id !== currentUserId) {
+                    const opt = document.createElement('option');
+                    opt.value = member.user.id;
+                    opt.textContent = member.user.username;
+                    consultantPicker.appendChild(opt);
+                }
+            });
+            // Set the default view to the logged-in user
+            consultantPicker.value = currentUserId;
+        } catch (error) {
+            console.error("Admin Error:", error);
+        }
+    }
+
+    // --- TIMESHEET UI LOGIC ---
+    function buildHead() {
+        const niceDate = d => d.toLocaleDateString(undefined, {month:'short', day:'numeric'});
+        weekLabel.textContent = `${niceDate(weekDays[0])} — ${niceDate(weekDays[4])}`;
+        let headHTML = `<tr><th class="proj-cell">Project</th>`;
+        ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].forEach((day, i) => {
+            headHTML += `<th><div>${day} • ${niceDate(weekDays[i])}</div></th>`;
+        });
+        headHTML += `<th><div>Total</div></th></tr>`;
+        timesheetHead.innerHTML = headHTML;
+    }
+
+    function renderTimesheet(tasks) {
+        buildHead();
+        timesheetBody.innerHTML = ''; 
+        if (tasks.length === 0) {
+            timesheetBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 40px;">No tasks assigned to the selected user.</td></tr>`;
+            saveButton.disabled = true;
+        } else {
+            saveButton.disabled = false;
+        }
+
+        tasks.forEach(task => {
+            const tr = document.createElement('tr');
+            tr.dataset.taskId = task.id;
+            let rowHTML = `<td class="proj-cell">${task.name}</td>`;
+            for(let i = 0; i < 5; i++) {
+                rowHTML += `<td><div class="cellBox"><input type="number" step="0.25" min="0" class="num tracked-input" placeholder="0.00"></div></td>`;
+            }
+            rowHTML += `<td><div class="cellBox"><input type="number" class="num" disabled value="0.00"></div></td>`;
+            tr.innerHTML = rowHTML;
+            timesheetBody.appendChild(tr);
+        });
+
+        buildFooter();
+        addInputListeners();
+        updateTotals();
+    }
+
+    function buildFooter() {
+        let footerHTML = `<tr><td class="proj-cell">All Projects Total</td>`;
+        for (let i=0; i<6; i++) footerHTML += `<td><input class="num" disabled value="0.00"></td>`;
+        timesheetFoot.innerHTML = footerHTML;
+    }
+
+    function addInputListeners() {
+        document.querySelectorAll('.tracked-input').forEach(input => {
+            input.addEventListener('input', updateTotals);
+        });
+        // Add listener for admin dropdown
+        consultantPicker.addEventListener('change', (event) => {
+            const selectedUserId = event.target.value;
+            if (selectedUserId === 'all') {
+                renderTimesheet(appData.allTasks);
+            } else {
+                const filteredTasks = appData.allTasks.filter(task => 
+                    task.assignees.some(assignee => assignee.id == selectedUserId)
+                );
+                renderTimesheet(filteredTasks);
+            }
+        });
+    }
+
+    function updateTotals() {
+        const rows = timesheetBody.querySelectorAll('tr[data-task-id]');
+        const dailyTotals = [0, 0, 0, 0, 0];
+        rows.forEach(row => {
+            let rowTotal = 0;
+            row.querySelectorAll('.tracked-input').forEach((input, index) => {
+                const val = parseFloat(input.value) || 0;
+                rowTotal += val;
+                dailyTotals[index] += val;
+            });
+            row.querySelector('td:last-child input').value = fmt(rowTotal);
+        });
+        const footerCells = timesheetFoot.querySelectorAll('td');
+        let grandTotal = 0;
+        dailyTotals.forEach((total, index) => {
+            footerCells[index + 1].querySelector('input').value = fmt(total);
+            grandTotal += total;
+        });
+        footerCells[footerCells.length - 1].querySelector('input').value = fmt(grandTotal);
+        document.getElementById('sumTracked').textContent = `Tracked: ${fmt(grandTotal)}h`;
+    }
+</script>
 </body>
 </html>
