@@ -8,6 +8,9 @@
         body { font-family: system-ui, sans-serif; display: grid; place-content: center; height: 100vh; background: #1a1a1a; margin: 0; color: white; text-align: center; }
         .login-btn { font-size: 18px; background: #7b68ee; color: white; padding: 14px 24px; border-radius: 8px; border: none; cursor: pointer; text-decoration: none; display: inline-block; }
         .hidden { display: none; }
+        #appView p { max-width: 400px; margin: 10px auto; }
+        #taskList { list-style: none; padding: 0; }
+        #taskList li { background: #2a2a2a; padding: 8px; border-radius: 4px; margin-bottom: 5px; }
     </style>
 </head>
 <body>
@@ -16,71 +19,111 @@
     </div>
 
     <div id="appView" class="hidden">
-        <h1>Login Successful!</h1>
-        <p>We have your access token.</p>
-        <p>Next step: Fetching your tasks...</p>
+        <h1 id="welcomeMessage">Login Successful!</h1>
+        <p id="statusText">We have your access token.</p>
+        <ul id="taskList"></ul>
     </div>
 
     <script>
         // --- CONFIGURATION ---
         const CLIENT_ID = '6JL5V3OXV2EZ426G9WH3G2SHSD1YZ43B';
-        const REDIRECT_URI = 'https://l5-time-tracker.vercel.app/';
+        const REDIRECT_URI = 'https://l5-time-tracker.vercel.app'; // Use your correct Vercel URL
 
         // --- DOM ELEMENTS ---
         const loginView = document.getElementById('loginView');
         const appView = document.getElementById('appView');
         const loginButton = document.getElementById('loginButton');
+        const welcomeMessage = document.getElementById('welcomeMessage');
+        const statusText = document.getElementById('statusText');
+        const taskList = document.getElementById('taskList');
 
-        // --- AUTHENTICATION LOGIC ---
+        // --- AUTHENTICATION & API LOGIC ---
 
-        // This function runs as soon as the page loads
         window.onload = function() {
-            // Check the URL for the temporary 'code' from ClickUp
             const urlParams = new URLSearchParams(window.location.search);
             const authCode = urlParams.get('code');
+            const accessToken = localStorage.getItem('clickup_access_token');
 
-            if (authCode) {
-                // If we have a code, hide the login button and get the real token
+            if (accessToken) {
+                // If we already have a token, show the app view and fetch data
+                loginView.classList.add('hidden');
+                appView.classList.remove('hidden');
+                fetchData(accessToken);
+            } else if (authCode) {
+                // If we have a new auth code, exchange it for a token
                 loginView.classList.add('hidden');
                 appView.classList.remove('hidden');
                 getAccessToken(authCode);
             }
         };
 
-        // When the login button is clicked
         loginButton.onclick = function() {
             const authUrl = `https://app.clickup.com/api?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
             window.location.href = authUrl;
         };
 
-        // Function to exchange the code for an access token
         async function getAccessToken(code) {
             try {
-                // Call our secure serverless function
+                statusText.textContent = 'Authenticating...';
                 const response = await fetch('/api/get_token', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ code: code }),
                 });
 
-                if (!response.ok) {
-                    throw new Error('Failed to get access token');
-                }
-
+                if (!response.ok) throw new Error('Failed to get access token');
+                
                 const data = await response.json();
                 const accessToken = data.accessToken;
                 
-                console.log('SUCCESS! Your Access Token is:', accessToken);
-                
-                // Store the token securely for future use
                 localStorage.setItem('clickup_access_token', accessToken);
-
-                // Now we can remove the temporary code from the URL for a cleaner look
                 window.history.replaceState({}, document.title, window.location.pathname);
+
+                // Now that we have the token, fetch the user's data
+                fetchData(accessToken);
 
             } catch (error) {
                 console.error('Error:', error);
-                appView.innerHTML = `<h1>Error</h1><p>Could not get access token. Check the console for details.</p>`;
+                statusText.textContent = `Error: Could not get access token.`;
+            }
+        }
+
+        async function fetchData(token) {
+            try {
+                // 1. Get User Info
+                statusText.textContent = 'Fetching user information...';
+                const userResponse = await fetch('https://api.clickup.com/api/v2/user', {
+                    headers: { 'Authorization': token }
+                });
+                if (!userResponse.ok) throw new Error('Could not fetch user info.');
+                const userData = await userResponse.json();
+                const user = userData.user;
+                const team = user.teams[0]; // Assuming the user's primary team
+
+                welcomeMessage.textContent = `Welcome, ${user.username}!`;
+                
+                // 2. Get User's Assigned Tasks
+                statusText.textContent = `Fetching tasks for workspace: ${team.name}...`;
+                const tasksResponse = await fetch(`https://api.clickup.com/api/v2/team/${team.id}/task?assignees[]=${user.id}`, {
+                    headers: { 'Authorization': token }
+                });
+                if (!tasksResponse.ok) throw new Error('Could not fetch tasks.');
+                const tasksData = await tasksResponse.json();
+                
+                statusText.textContent = `Found ${tasksData.tasks.length} assigned tasks.`;
+
+                // 3. Display the tasks on the page
+                taskList.innerHTML = ''; // Clear previous list
+                tasksData.tasks.forEach(task => {
+                    console.log('Task:', task.name); // Log task name to console
+                    const listItem = document.createElement('li');
+                    listItem.textContent = task.name;
+                    taskList.appendChild(listItem);
+                });
+
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                statusText.textContent = `Error: ${error.message}`;
             }
         }
     </script>
